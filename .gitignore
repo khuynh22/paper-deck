@@ -1,10 +1,42 @@
-node_modules/
-.next/
-.env*
+
 !.env.example
-.DS_Store
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+# PaperDeck additions
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# debug
+# dependencies
+# env files (can opt-in for committing if needed)
+# misc
+# next.js
+# production
+# testing
+# typescript
+# vercel
 *.log
-.vercel
-coverage/
+*.pem
+*.tsbuildinfo
+.DS_Store
+.env*
+.next/
+.pnp.*
+.pnpm-debug.log*
 .turbo
+.vercel
+.yarn/*
+/.next/
+/.pnp
+/build
+/coverage
+/node_modules
+/out/
+coverage/
 next-env.d.ts
+node_modules/
+npm-debug.log*
+supabase/.branches
+supabase/.temp
+yarn-debug.log*
+yarn-error.log*
