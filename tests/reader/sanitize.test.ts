@@ -1,5 +1,25 @@
 import { test, expect } from "vitest";
-import { sanitizePaperHtml } from "@/lib/reader/sanitize";
+import { sanitizePaperHtml, extractMainContent } from "@/lib/reader/sanitize";
+
+test("extracts the article body and drops surrounding page chrome", () => {
+  const doc = `<header><nav>menu</nav></header><article class="ltx_document"><p>body</p></article><footer>foot</footer>`;
+  const out = extractMainContent(doc);
+  expect(out).toContain("<p>body</p>");
+  expect(out).not.toContain("menu");
+  expect(out).not.toContain("foot");
+});
+
+test("extractMainContent leaves a bare fragment unchanged", () => {
+  expect(extractMainContent("<p>a</p><p>b</p>")).toBe("<p>a</p><p>b</p>");
+});
+
+test("sanitize drops chrome so anchors only cover the paper body", () => {
+  const doc = `<header data-blk-x><nav>menu</nav></header><article><p>intro</p><p>method</p></article>`;
+  const out = sanitizePaperHtml(doc, "2401.1");
+  expect(out).not.toContain("menu");
+  expect(out).toContain('data-blk="0"');
+  expect(out).toContain("intro");
+});
 
 test("strips script tags and inline handlers", () => {
   const out = sanitizePaperHtml(`<p>ok</p><script>alert(1)</script>`, "2401.1");
