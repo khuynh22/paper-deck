@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.env*
+!.env.example
+.DS_Store
+*.log
+.vercel
+coverage/
+.turbo
+next-env.d.ts
