@@ -10,14 +10,19 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const redirectTo =
-    typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
+  // Read ?next= from the URL (without useSearchParams, to avoid a Suspense boundary)
+  // and thread it through the callback so users return to where they were headed.
+  function buildRedirectTo(): string | undefined {
+    if (typeof window === "undefined") return undefined;
+    const next = new URLSearchParams(window.location.search).get("next") || "/";
+    return `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+  }
 
   async function signInWithGoogle() {
     setError(null);
     const { error } = await browserClient().auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo },
+      options: { redirectTo: buildRedirectTo() },
     });
     if (error) setError(error.message);
   }
@@ -28,7 +33,7 @@ export default function LoginPage() {
     setLoading(true);
     const { error } = await browserClient().auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: redirectTo },
+      options: { emailRedirectTo: buildRedirectTo() },
     });
     setLoading(false);
     if (error) setError(error.message);
