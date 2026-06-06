@@ -1,0 +1,23 @@
+{
+  "total": 2,
+  "data": [
+    {
+      "title": "Attention Is All You Need",
+      "abstract": "We propose the Transformer.",
+      "year": 2017,
+      "citationCount": 130000,
+      "authors": [{ "name": "A Vaswani" }, { "name": "N Shazeer" }],
+      "externalIds": { "ArXiv": "1706.03762", "DOI": "10.5555/abc" },
+      "openAccessPdf": { "url": "https://arxiv.org/pdf/1706.03762" }
+    },
+    {
+      "title": "A Non-ArXiv Paper",
+      "abstract": null,
+      "year": 2015,
+      "citationCount": 5000,
+      "authors": [{ "name": "K He" }],
+      "externalIds": { "DOI": "10.1109/xyz" },
+      "openAccessPdf": null
+    }
+  ]
+}

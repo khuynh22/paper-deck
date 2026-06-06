@@ -1,0 +1,23 @@
+[
+  {
+    "title": "Mixture of Tiny Experts",
+    "publishedAt": "2026-06-05T00:00:00.000Z",
+    "paper": {
+      "id": "2606.01234",
+      "title": "Mixture of Tiny Experts",
+      "summary": "We propose a tiny mixture-of-experts architecture.",
+      "authors": [{ "name": "Jane Roe" }, { "name": "John Doe" }],
+      "upvotes": 87,
+      "publishedAt": "2026-06-05T00:00:00.000Z"
+    }
+  },
+  {
+    "title": "No Id Paper",
+    "publishedAt": "2026-06-05T00:00:00.000Z",
+    "paper": {
+      "summary": "Should be dropped, has no arxiv id.",
+      "authors": [],
+      "upvotes": 3
+    }
+  }
+]

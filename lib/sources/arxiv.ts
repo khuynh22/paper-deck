@@ -68,7 +68,7 @@ export async function fetchArxivLatest(
 ): Promise<NormalizedPaper[]> {
   const query = categories.map((c) => `cat:${c}`).join("+OR+");
   const url =
-    `http://export.arxiv.org/api/query?search_query=${query}` +
+    `https://export.arxiv.org/api/query?search_query=${query}` +
     `&sortBy=submittedDate&sortOrder=descending&start=0&max_results=${max}`;
   const res = await fetch(url, { headers: { "User-Agent": "PaperDeck/1.0 (research reader)" } });
   if (!res.ok) throw new Error(`arxiv ${res.status}`);

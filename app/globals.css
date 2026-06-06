@@ -1,26 +1,98 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #18181b;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --border: #e4e4e7;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --accent: #f59e0b;
+  --danger: #ef4444;
+  --read-tint: rgba(79, 70, 229, 0.07);
+  --read-accent: #4f46e5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #09090b;
+    --foreground: #ededed;
+    --card: #131316;
+    --card-foreground: #ededed;
+    --muted: #1c1c1f;
+    --muted-foreground: #a1a1aa;
+    --border: #27272a;
+    --primary: #818cf8;
+    --primary-foreground: #0b0b12;
+    --accent: #fbbf24;
+    --danger: #f87171;
+    --read-tint: rgba(129, 140, 248, 0.1);
+    --read-accent: #818cf8;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* ---- Reader: paper HTML typography ---- */
+.paper-html {
+  max-width: 46rem;
+  margin: 0 auto;
+  line-height: 1.7;
+  font-size: 1.02rem;
+}
+.paper-html h1,
+.paper-html h2,
+.paper-html h3 {
+  font-weight: 650;
+  line-height: 1.25;
+  margin: 1.6em 0 0.6em;
+}
+.paper-html h1 { font-size: 1.6rem; }
+.paper-html h2 { font-size: 1.3rem; }
+.paper-html h3 { font-size: 1.1rem; }
+.paper-html p { margin: 0.9em 0; }
+.paper-html img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+.paper-html table { border-collapse: collapse; width: 100%; overflow-x: auto; display: block; }
+.paper-html td,
+.paper-html th { border: 1px solid var(--border); padding: 0.4rem 0.6rem; }
+.paper-html a { color: var(--primary); text-decoration: underline; }
+.paper-html figure { margin: 1.2em 0; text-align: center; }
+.paper-html figcaption { font-size: 0.9rem; color: var(--muted-foreground); }
+
+/* ---- Read-progress highlight ---- */
+.paper-html [data-blk].read,
+.read {
+  background: var(--read-tint);
+  border-left: 3px solid var(--read-accent);
+  padding-left: 0.6rem;
+  margin-left: -0.9rem;
+  border-radius: 2px;
+  transition: background 0.2s ease;
+}
+
+/* thin scrollbars on horizontal shelves */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
