@@ -33,22 +33,31 @@ migration as the column.
 
 ## Migration — `supabase/migrations/0002_search.sql`
 
+The vector build is wrapped in an `IMMUTABLE` function (`papers_search_vector`)
+that the generated column references. This is **required**: `array_to_string` is
+only declared `STABLE`, so referencing it directly in a `generated … stored`
+expression raises `ERROR: generation expression is not immutable` (confirmed on
+apply). For `text[]` the stringify is genuinely immutable, so wrapping it in a
+function we declare `IMMUTABLE` is safe and Postgres accepts it.
+
 ```sql
-alter table papers add column if not exists search_vector tsvector
-  generated always as (
+create or replace function papers_search_vector(
+  title text, authors text[], abstract text, categories text[]
+) returns tsvector language sql immutable as $$
+  select
     setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-    setweight(to_tsvector('english', array_to_string(authors, ' ')), 'B') ||
+    setweight(to_tsvector('english', coalesce(array_to_string(authors, ' '), '')), 'B') ||
     setweight(to_tsvector('english', coalesce(abstract, '')), 'C') ||
-    setweight(to_tsvector('english', array_to_string(categories, ' ')), 'D')
-  ) stored;
+    setweight(to_tsvector('english', coalesce(array_to_string(categories, ' '), '')), 'D')
+$$;
+
+alter table papers add column if not exists search_vector tsvector
+  generated always as (papers_search_vector(title, authors, abstract, categories)) stored;
 
 create index if not exists papers_search_idx on papers using gin (search_vector);
 
 create or replace function search_papers(q text, lim int default 40)
-returns setof papers
-language sql
-stable
-as $$
+returns setof papers language sql stable as $$
   select *
   from papers
   where search_vector @@ websearch_to_tsquery('english', q)
@@ -62,9 +71,6 @@ $$;
   recomputes it on every insert/update, so `upsertPapers` is untouched and
   existing rows index the moment the migration runs.
 - Weights: title (A) > authors (B) > abstract (C) > categories (D).
-- The two-arg `to_tsvector('english', …)` is immutable, so it is legal in a
-  generated column. Verify on apply: it must not raise "generation expression is
-  not immutable". Fallback (do not pre-build): trigger-maintained column.
 - `search_papers` is `security invoker` (default), so the caller's RLS applies.
   `papers` is world-readable (`select using(true)`), so anon + authenticated can
   call it.
@@ -84,8 +90,9 @@ $$;
 - **`lib/corpus/query.ts` → `searchCorpus(q, limit=40)`**: `db.rpc('search_papers',
   { q, lim })`. Empty/whitespace `q` returns `[]` without a round-trip.
 - **`lib/sources/arxiv.ts` → `buildArxivSearchUrl(q, max=25)` (pure) +
-  `searchArxiv(q)`**: `search_query=all:<encoded q>&sortBy=relevance`, parsed by
-  the existing `parseArxivAtom`.
+  `searchArxiv(q)`**: `sortBy=relevance`, parsed by the existing `parseArxivAtom`.
+  Multi-word queries are AND-joined per term (`all:diffusion+AND+all:models`)
+  because arXiv reads a bare space as OR — verified against the live API.
 - **`app/actions/search.ts` → `searchArxivAction(q)`** (`"use server"`): verify a
   signed-in user (the action writes to the shared corpus via the service role, so
   it is gated to signed-in users — not owner-only, since discovery should work for

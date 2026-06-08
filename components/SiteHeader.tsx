@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { AuthButton } from "@/components/AuthButton";
+import { SearchBar } from "@/components/SearchBar";
 
 export async function SiteHeader() {
   let email: string | null = null;
@@ -21,6 +22,7 @@ export async function SiteHeader() {
           PaperDeck
         </Link>
         <nav className="flex items-center gap-1 text-sm">
+          <SearchBar className="mr-1 hidden w-40 sm:block md:w-56" />
           <Link href="/feed" className="rounded-md px-3 py-1.5 hover:bg-muted">
             Feed
           </Link>

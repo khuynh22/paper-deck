@@ -40,6 +40,20 @@ export async function getFeed(tab: FeedTab, limit = 40): Promise<PaperRow[]> {
   return rows;
 }
 
+/**
+ * Ranked full-text search over the shared corpus. Delegates to the `search_papers`
+ * SQL function (migration 0002) because supabase-js cannot order by a ts_rank()
+ * expression through the query builder. Returns [] for a blank query.
+ */
+export async function searchCorpus(query: string, limit = 40): Promise<PaperRow[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const db = await serverClient();
+  const { data, error } = await db.rpc("search_papers", { q, lim: limit });
+  if (error) throw error;
+  return (data ?? []) as PaperRow[];
+}
+
 /** Fetch a single paper by id. */
 export async function getPaper(id: string): Promise<PaperRow | null> {
   const db = await serverClient();

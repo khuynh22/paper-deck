@@ -74,3 +74,30 @@ export async function fetchArxivLatest(
   if (!res.ok) throw new Error(`arxiv ${res.status}`);
   return parseArxivAtom(await res.text());
 }
+
+/** Build the arXiv API URL for a free-text relevance search. Pure + testable. */
+export function buildArxivSearchUrl(query: string, max = 25): string {
+  // arXiv reads a literal space as OR; join whitespace-separated terms with AND so a
+  // multi-word query matches papers about *all* the terms, not any of them. (Verified
+  // against the live API: bare "all:diffusion models" parses as "all:diffusion OR all:models".)
+  const searchQuery = query
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((term) => `all:${encodeURIComponent(term)}`)
+    .join("+AND+");
+  return (
+    `https://export.arxiv.org/api/query?search_query=${searchQuery}` +
+    `&sortBy=relevance&sortOrder=descending&start=0&max_results=${max}`
+  );
+}
+
+/** Search arXiv by free text, most relevant first. Returns [] for a blank query. */
+export async function searchArxiv(query: string, max = 25): Promise<NormalizedPaper[]> {
+  if (!query.trim()) return [];
+  const res = await fetch(buildArxivSearchUrl(query, max), {
+    headers: { "User-Agent": "PaperDeck/1.0 (research reader)" },
+  });
+  if (!res.ok) throw new Error(`arxiv ${res.status}`);
+  return parseArxivAtom(await res.text());
+}
