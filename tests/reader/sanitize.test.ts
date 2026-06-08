@@ -34,13 +34,30 @@ test("keeps MathML elements", () => {
   expect(out).toContain("<mo");
 });
 
-test("rewrites a relative image src to an absolute arxiv url", () => {
-  const out = sanitizePaperHtml(`<img src="figures/f1.png">`, "2401.12345");
-  expect(out).toContain("https://arxiv.org/html/2401.12345/figures/f1.png");
+test("resolves a relative image src (incl. arXiv's version dir) against the page url", () => {
+  // Real arXiv HTML emits srcs that already include the versioned paper dir, e.g.
+  // <img src="2606.06494v1/x1.png">. Resolving against the page URL must NOT double it.
+  const out = sanitizePaperHtml(
+    `<img src="2606.06494v1/x1.png">`,
+    "https://arxiv.org/html/2606.06494v1",
+  );
+  expect(out).toContain('src="https://arxiv.org/html/2606.06494v1/x1.png"');
+  expect(out).not.toContain("2606.06494v1/2606.06494v1");
+});
+
+test("resolves a relative image src in a subfolder", () => {
+  const out = sanitizePaperHtml(
+    `<img src="2606.06494v1/figures/head_penalty.png">`,
+    "https://arxiv.org/html/2606.06494v1",
+  );
+  expect(out).toContain("https://arxiv.org/html/2606.06494v1/figures/head_penalty.png");
 });
 
 test("leaves absolute image urls untouched", () => {
-  const out = sanitizePaperHtml(`<img src="https://cdn.example.com/x.png">`, "2401.1");
+  const out = sanitizePaperHtml(
+    `<img src="https://cdn.example.com/x.png">`,
+    "https://arxiv.org/html/2401.1",
+  );
   expect(out).toContain("https://cdn.example.com/x.png");
 });
 

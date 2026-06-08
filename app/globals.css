@@ -56,31 +56,34 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
-/* ---- Reader: paper HTML typography ---- */
-.paper-html {
-  max-width: 46rem;
+/* ---- Reader: arXiv (LaTeXML) overrides ----
+   ar5iv.css is loaded on reader pages (app/reader/layout.tsx).
+   html .paper-html (specificity 0,1,0,1) beats ar5iv's .paper-html (0,0,1,0)
+   so these values always win regardless of load order. */
+html .paper-html {
+  /* Layout — ltx_page_content (ar5iv's width anchor) is stripped during sanitize;
+     apply width constraint here instead */
+  max-width: 52rem;
   margin: 0 auto;
+  height: auto;
   line-height: 1.7;
-  font-size: 1.02rem;
+
+  /* Map ar5iv color vars to our design tokens */
+  --background-color: var(--background);
+  --text-color: var(--foreground);
+  --border-color: var(--border);
+  --border-light-color: var(--muted-foreground);
+  --link-text-color: var(--primary);
+  --image-background-color: var(--background);
+  --note-mark-color: var(--primary);
+  --email-link-color: var(--primary);
 }
-.paper-html h1,
-.paper-html h2,
-.paper-html h3 {
-  font-weight: 650;
-  line-height: 1.25;
-  margin: 1.6em 0 0.6em;
+
+@media (prefers-color-scheme: dark) {
+  html .paper-html img {
+    filter: brightness(0.85) contrast(1.1);
+  }
 }
-.paper-html h1 { font-size: 1.6rem; }
-.paper-html h2 { font-size: 1.3rem; }
-.paper-html h3 { font-size: 1.1rem; }
-.paper-html p { margin: 0.9em 0; }
-.paper-html img { max-width: 100%; height: auto; border-radius: 0.5rem; }
-.paper-html table { border-collapse: collapse; width: 100%; overflow-x: auto; display: block; }
-.paper-html td,
-.paper-html th { border: 1px solid var(--border); padding: 0.4rem 0.6rem; }
-.paper-html a { color: var(--primary); text-decoration: underline; }
-.paper-html figure { margin: 1.2em 0; text-align: center; }
-.paper-html figcaption { font-size: 0.9rem; color: var(--muted-foreground); }
 
 /* ---- Read-progress highlight ---- */
 .paper-html [data-blk].read,

@@ -51,12 +51,23 @@ export function extractMainContent(html: string): string {
   return html;
 }
 
-/** Absolutize relative <img src> against the arXiv HTML base BEFORE sanitizing. */
-function absolutizeImages(html: string, arxivId: string): string {
-  const base = `https://arxiv.org/html/${arxivId}/`;
+/**
+ * Absolutize relative <img src> against the source page's URL BEFORE sanitizing.
+ * arXiv HTML emits srcs that already include the versioned paper dir (e.g.
+ * "2606.06494v1/x1.png"), so resolving against the page URL with the URL parser
+ * yields the right target without doubling the paper path. Works for both the
+ * arxiv.org/html and ar5iv.org sources.
+ */
+function absolutizeImages(html: string, baseUrl: string): string {
   return html.replace(
     /(<img\b[^>]*\bsrc=")(?!https?:|data:)([^"]*)"/gi,
-    (_m, pre: string, src: string) => `${pre}${base}${src.replace(/^\.?\//, "")}"`,
+    (m, pre: string, src: string) => {
+      try {
+        return `${pre}${new URL(src, baseUrl).href}"`;
+      } catch {
+        return m; // unparseable base/src — leave the tag untouched
+      }
+    },
   );
 }
 
@@ -74,11 +85,11 @@ function tagBlocks(html: string): string {
  * Sanitize an arXiv HTML paper for safe in-app rendering.
  * - keeps MathML (equations) and figures
  * - strips scripts/styles/iframes/forms
- * - rewrites relative image URLs to absolute arXiv URLs
+ * - resolves relative image URLs against the source page URL (`baseUrl`)
  * - tags block elements with `data-blk` indices (for resume + highlight)
  */
-export function sanitizePaperHtml(html: string, arxivId: string): string {
-  const absolutized = absolutizeImages(extractMainContent(html), arxivId);
+export function sanitizePaperHtml(html: string, baseUrl: string): string {
+  const absolutized = absolutizeImages(extractMainContent(html), baseUrl);
   const clean = DOMPurify.sanitize(absolutized, {
     ADD_TAGS: [...MATHML_TAGS, "figure", "figcaption"],
     ADD_ATTR: ["mathvariant", "displaystyle", "scriptlevel", "display", "encoding"],

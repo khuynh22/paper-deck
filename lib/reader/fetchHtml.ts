@@ -19,7 +19,9 @@ export async function loadReaderHtml(arxivId: string): Promise<ReaderHtmlResult>
       const raw = await res.text();
       // arXiv serves a small stub page when no HTML exists; require real content.
       if (raw.length > 2000) {
-        return { kind: "html", html: sanitizePaperHtml(raw, arxivId) };
+        // res.url is the final URL after redirects (arXiv redirects the unversioned
+        // /html/<id> to the versioned page); relative <img src>s resolve against it.
+        return { kind: "html", html: sanitizePaperHtml(raw, res.url || url) };
       }
     } catch {
       // network error — try the next candidate

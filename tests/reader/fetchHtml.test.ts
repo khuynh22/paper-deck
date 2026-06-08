@@ -10,7 +10,7 @@ function mockFetch(handler: (url: string) => { ok: boolean; body: string }) {
     "fetch",
     vi.fn(async (input: string) => {
       const { ok, body } = handler(String(input));
-      return { ok, text: async () => body } as Response;
+      return { ok, url: String(input), text: async () => body } as Response;
     }),
   );
 }
@@ -30,6 +30,19 @@ test("falls back to ar5iv when arxiv HTML 404s", async () => {
   const res = await loadReaderHtml("2401.1");
   expect(res.kind).toBe("html");
   if (res.kind === "html") expect(res.html).toContain("AR5IV");
+});
+
+test("absolutizes relative image srcs against the fetched page url", async () => {
+  mockFetch((url) => ({
+    ok: url.includes("arxiv.org/html"),
+    body: bigHtml(`<img src="2606.06494v1/x1.png">`),
+  }));
+  const res = await loadReaderHtml("2606.06494");
+  expect(res.kind).toBe("html");
+  if (res.kind === "html") {
+    expect(res.html).toContain("https://arxiv.org/html/2606.06494v1/x1.png");
+    expect(res.html).not.toContain("2606.06494v1/2606.06494v1");
+  }
 });
 
 test("returns none when neither source has usable html", async () => {
