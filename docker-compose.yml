@@ -1,0 +1,23 @@
+# Local production-image testing for PaperDeck.
+#
+# Run:   docker compose --env-file .env.local up --build
+#   --env-file .env.local  -> supplies NEXT_PUBLIC_* values for the build-arg
+#                             interpolation below (compose only auto-reads `.env`).
+#   env_file (per service) -> injects ALL vars (incl. secrets) into the running container.
+#
+# This is for LOCAL prod testing / self-hosting ONLY. Vercel does NOT use this file or
+# the Dockerfile — it builds Next.js natively. See docs/DEPLOY.md for the Vercel path.
+services:
+  web:
+    build:
+      context: .
+      args:
+        # Public, inlined into the client bundle at build time (not secret).
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    image: paper-deck:local
+    env_file:
+      - .env.local
+    ports:
+      - "3001:3001"
+    restart: unless-stopped

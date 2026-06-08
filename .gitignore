@@ -40,3 +40,12 @@ supabase/.branches
 supabase/.temp
 yarn-debug.log*
 yarn-error.log*
+
+# ---- PaperDeck dev scratch (not for VCS) ----
+# Scraper inputs / intermediate dumps for scripts/scope-ar5iv.mjs and reader-style
+# experiments. The generated asset public/ar5iv.css IS committed; these are reproducible.
+/_*.css
+/_*.html
+/_*.json
+# Visual before/after diffs from reader-styling experiments (large PNGs + HTML).
+/.preview/

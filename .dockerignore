@@ -1,0 +1,41 @@
+# Dependencies / build output (reinstalled & rebuilt inside the image)
+node_modules
+.next
+.turbo
+
+# Secrets — NEVER copy env files into the image. Public NEXT_PUBLIC_* values are
+# passed as build args; secrets (service role, cron) are passed at runtime via --env-file.
+.env
+.env.*
+
+# VCS / tooling
+.git
+.gitignore
+.vscode
+.idea
+
+# Docs & plans (not needed at runtime)
+README.md
+DEPLOY.md
+*.md
+docs
+
+# Dev-only scratch / scripts / generated previews
+scripts
+.preview
+_ar5iv.css
+_arxiv.css
+_arxiv.html
+_content.json
+_theme.css
+
+# Tests
+**/*.test.ts
+**/*.test.tsx
+vitest.config.*
+
+# OS noise
+Dockerfile
+.dockerignore
+npm-debug.log*
+pnpm-debug.log*
