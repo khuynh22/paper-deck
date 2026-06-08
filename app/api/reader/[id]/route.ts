@@ -5,6 +5,9 @@ import { loadReaderHtml } from "@/lib/reader/fetchHtml";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Uncached papers are fetched + sanitized live; a few large ar5iv-fallback docs
+// (no native arXiv HTML) can take several seconds. Lift the default ~10s cap.
+export const maxDuration = 60;
 
 type Ctx = { params: Promise<{ id: string }> };
 
