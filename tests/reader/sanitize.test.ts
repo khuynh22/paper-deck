@@ -61,6 +61,19 @@ test("leaves absolute image urls untouched", () => {
   expect(out).toContain("https://cdn.example.com/x.png");
 });
 
+test("keeps fragment + relative links (citations, eq/section refs) but drops javascript: hrefs", () => {
+  // Academic HTML navigates via fragments: citations (#bib.bib1), equation and
+  // section refs (#S3.E2). These must survive sanitizing or in-reader nav breaks.
+  const out = sanitizePaperHtml(
+    `<a href="#bib.bib1">[1]</a><a href="#S3.E2">Eq</a><a href="/abs/2401.1">p</a><a href="javascript:alert(1)">x</a>`,
+    "2401.1",
+  );
+  expect(out).toContain('href="#bib.bib1"');
+  expect(out).toContain('href="#S3.E2"');
+  expect(out).toContain('href="/abs/2401.1"');
+  expect(out).not.toContain("javascript:");
+});
+
 test("tags block elements with sequential data-blk indices", () => {
   const out = sanitizePaperHtml(`<p>a</p><p class="x">b</p><h2>c</h2>`, "2401.1");
   expect(out).toContain('data-blk="0"');

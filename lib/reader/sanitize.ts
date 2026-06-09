@@ -1,4 +1,4 @@
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtml from "sanitize-html";
 
 const MATHML_TAGS = [
   "math",
@@ -29,6 +29,21 @@ const MATHML_TAGS = [
   "annotation",
   "annotation-xml",
 ];
+
+// MathML presentation attributes worth keeping so equations render correctly.
+const MATHML_ATTRS = [
+  "display", "displaystyle", "scriptlevel", "mathvariant", "mathsize",
+  "mathcolor", "mathbackground", "encoding", "columnalign", "rowalign",
+  "columnspan", "columnlines", "rowlines", "frame", "framespacing",
+  "equalrows", "equalcolumns", "align", "width", "height", "depth",
+  "lspace", "rspace", "linethickness", "open", "close", "separators",
+  "stretchy", "fence", "accent", "accentunder", "largeop", "movablelimits",
+  "form", "notation", "voffset", "minsize", "maxsize", "symmetric",
+];
+
+// Structural/presentational attributes kept on any element (no event handlers).
+const COMMON_ATTRS = ["class", "id", "style", "title", "lang", "dir"];
+const TABLE_ATTRS = ["colspan", "rowspan", "valign", "scope", "headers"];
 
 const BLOCK_TAGS = "p|h1|h2|h3|h4|h5|h6|li|figure|table|blockquote|pre|section|div";
 
@@ -83,19 +98,30 @@ function tagBlocks(html: string): string {
 
 /**
  * Sanitize an arXiv HTML paper for safe in-app rendering.
- * - keeps MathML (equations) and figures
- * - strips scripts/styles/iframes/forms
+ * - keeps MathML (equations), figures, tables
+ * - drops scripts/styles/iframes/forms and every event-handler attribute
  * - resolves relative image URLs against the source page URL (`baseUrl`)
  * - tags block elements with `data-blk` indices (for resume + highlight)
+ *
+ * Uses the parser-based `sanitize-html` (no DOM): pure JS with no jsdom, so it
+ * loads and runs reliably in bundled serverless functions. (jsdom's runtime
+ * `require()` chain throws ERR_REQUIRE_ESM on older serverless Node.)
  */
 export function sanitizePaperHtml(html: string, baseUrl: string): string {
   const absolutized = absolutizeImages(extractMainContent(html), baseUrl);
-  const clean = DOMPurify.sanitize(absolutized, {
-    ADD_TAGS: [...MATHML_TAGS, "figure", "figcaption"],
-    ADD_ATTR: ["mathvariant", "displaystyle", "scriptlevel", "display", "encoding"],
-    FORBID_TAGS: ["script", "style", "iframe", "form", "input", "button", "noscript", "link"],
-    FORBID_ATTR: ["onerror", "onload", "onclick"],
-    ALLOWED_URI_REGEXP: /^(?:https?:|data:image\/|#)/i,
+  const clean = sanitizeHtml(absolutized, {
+    // <img> and MathML aren't in sanitize-html's defaults; everything else we
+    // need (figure, table, section, lists, headings…) already is.
+    allowedTags: [...sanitizeHtml.defaults.allowedTags, "img", ...MATHML_TAGS],
+    allowedAttributes: {
+      "*": [...COMMON_ATTRS, ...TABLE_ATTRS, ...MATHML_ATTRS],
+      a: ["href", "name", "target", "rel"],
+      img: ["src", "srcset", "alt", "title", "width", "height", "loading"],
+    },
+    allowedSchemes: ["http", "https", "mailto"],
+    allowedSchemesByTag: { img: ["http", "https", "data"] },
+    allowProtocolRelative: false,
+    // <script>/<style> tags AND their text content are dropped by default.
   });
-  return tagBlocks(typeof clean === "string" ? clean : String(clean));
+  return tagBlocks(clean);
 }

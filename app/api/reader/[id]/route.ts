@@ -60,9 +60,6 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   }
 
   // --- Fetch + sanitize HTML on demand, then cache ---
-  // Load the sanitizer (which pulls in jsdom) lazily so any module-load/runtime
-  // failure is contained to this branch — cached papers and the PDF fallback
-  // keep working — and is surfaced as JSON instead of crashing the whole route.
   if (paper.arxiv_id) {
     try {
       const { loadReaderHtml } = await import("@/lib/reader/fetchHtml");
@@ -78,18 +75,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         }
         return NextResponse.json({ kind: "html", html: result.html, pdfUrl: paper.pdf_url, title });
       }
+      // result.kind === "none" — no HTML version; fall through to PDF/none below.
     } catch (e) {
-      // TEMP DIAGNOSTIC: expose the real failure (jsdom bundling?) so we can see
-      // it without Vercel runtime-log access. Revert to a graceful fallback once known.
-      const err = e as Error;
-      return NextResponse.json(
-        {
-          error: "sanitize_unavailable",
-          message: err?.message ?? String(e),
-          stack: (err?.stack ?? "").split("\n").slice(0, 6).join(" | "),
-        },
-        { status: 200 },
-      );
+      // Unexpected fetch/sanitize failure — log for server observability and
+      // degrade gracefully to the PDF / "no in-app version" fallback below
+      // instead of dead-ending the reader.
+      console.error("reader: html load failed for", paper.arxiv_id, e);
     }
   }
 
