@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { serverClient } from "@/lib/db/server";
 import { serviceClient } from "@/lib/db/service";
-import { loadReaderHtml } from "@/lib/reader/fetchHtml";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,18 +60,36 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   }
 
   // --- Fetch + sanitize HTML on demand, then cache ---
+  // Load the sanitizer (which pulls in jsdom) lazily so any module-load/runtime
+  // failure is contained to this branch — cached papers and the PDF fallback
+  // keep working — and is surfaced as JSON instead of crashing the whole route.
   if (paper.arxiv_id) {
-    const result = await loadReaderHtml(paper.arxiv_id);
-    if (result.kind === "html") {
-      try {
-        serviceClient()
-          .from("paper_content")
-          .upsert({ paper_id: id, kind: "html", sanitized_html: result.html })
-          .then(() => {});
-      } catch {
-        // no service key configured — serve uncached
+    try {
+      const { loadReaderHtml } = await import("@/lib/reader/fetchHtml");
+      const result = await loadReaderHtml(paper.arxiv_id);
+      if (result.kind === "html") {
+        try {
+          serviceClient()
+            .from("paper_content")
+            .upsert({ paper_id: id, kind: "html", sanitized_html: result.html })
+            .then(() => {});
+        } catch {
+          // no service key configured — serve uncached
+        }
+        return NextResponse.json({ kind: "html", html: result.html, pdfUrl: paper.pdf_url, title });
       }
-      return NextResponse.json({ kind: "html", html: result.html, pdfUrl: paper.pdf_url, title });
+    } catch (e) {
+      // TEMP DIAGNOSTIC: expose the real failure (jsdom bundling?) so we can see
+      // it without Vercel runtime-log access. Revert to a graceful fallback once known.
+      const err = e as Error;
+      return NextResponse.json(
+        {
+          error: "sanitize_unavailable",
+          message: err?.message ?? String(e),
+          stack: (err?.stack ?? "").split("\n").slice(0, 6).join(" | "),
+        },
+        { status: 200 },
+      );
     }
   }
 
