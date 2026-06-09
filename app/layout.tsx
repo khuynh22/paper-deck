@@ -7,7 +7,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PaperDeck — your AI/ML reading deck",
+  title: { default: "PaperDeck", template: "%s · PaperDeck" },
   description:
     "Browse the latest, trending, and famous AI/ML papers, star them, and read in-app with resume + highlight.",
 };
