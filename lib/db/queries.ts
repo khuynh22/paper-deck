@@ -4,7 +4,8 @@ import type { PaperRow } from "@/lib/types";
 /** Set of paper ids the user has starred (for marking feed cards). */
 export async function getStarredIds(userId: string): Promise<Set<string>> {
   const db = await serverClient();
-  const { data } = await db.from("stars").select("paper_id").eq("user_id", userId);
+  const { data, error } = await db.from("stars").select("paper_id").eq("user_id", userId);
+  if (error) throw new Error(`stars query failed: ${error.message}`);
   return new Set((data ?? []).map((r) => r.paper_id as string));
 }
 

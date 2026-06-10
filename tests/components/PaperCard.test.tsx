@@ -5,6 +5,7 @@ import type { PaperRow } from "@/lib/types";
 
 // Avoid importing the server action chain (next/headers) in jsdom.
 vi.mock("@/app/actions/star", () => ({ toggleStar: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 const paper: PaperRow = {
   id: "p1",

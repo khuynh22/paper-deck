@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toggleStar } from "@/app/actions/star";
 
 export function StarButton({
@@ -12,16 +13,22 @@ export function StarButton({
 }) {
   const [starred, setStarred] = useState(initialStarred);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   function onClick() {
     const prev = starred;
     setStarred(!prev); // optimistic
     startTransition(async () => {
       try {
-        const next = await toggleStar(paperId, prev);
-        setStarred(next);
+        const result = await toggleStar(paperId, prev);
+        if (result.ok) {
+          setStarred(result.starred);
+        } else {
+          setStarred(prev); // the write was rejected — undo the optimistic flip
+          if (result.error === "auth-required") router.push("/login");
+        }
       } catch {
-        setStarred(prev); // revert on failure
+        setStarred(prev); // network/unexpected failure
       }
     });
   }
