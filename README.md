@@ -9,6 +9,8 @@ AI/ML papers (Latest / Trending / Famous), lets you star papers to read, and rea
 them in-app with **scroll-resume** and a **"read up to here" highlight** — synced
 across your phone and PC.
 
+📺 **[Watch the demo](https://youtu.be/vtyx34JvxX0)**
+
 ## Features
 
 - **One deduplicated corpus, three views** — Latest (arXiv), Trending (Hugging Face
