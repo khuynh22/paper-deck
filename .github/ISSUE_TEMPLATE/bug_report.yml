@@ -1,0 +1,54 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly.
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please search existing issues first.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including what you expected instead.
+      placeholder: When I open a PDF-only paper in the reader, the resume marker...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Sign in and star a paper
+        2. Open it in the reader
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Feed (Latest / Trending / Famous)
+        - Reader (HTML)
+        - Reader (PDF)
+        - Library / starring
+        - Sources / ingestion (arXiv, HF, Semantic Scholar, ...)
+        - Auth / accounts
+        - Self-hosting / deployment
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser + OS, and whether you're on a self-hosted instance.
+      placeholder: Chrome 137 / Windows 11, self-hosted on Vercel + Supabase
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Console output, server logs, or screenshots. Redact any API keys.
+      render: shell

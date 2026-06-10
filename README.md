@@ -1,5 +1,9 @@
 # PaperDeck
 
+[![CI](https://github.com/khuynh22/paper-deck/actions/workflows/ci.yml/badge.svg)](https://github.com/khuynh22/paper-deck/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 Your AI/ML research, on one deck. A responsive, multi-user web app that aggregates
 AI/ML papers (Latest / Trending / Famous), lets you star papers to read, and reads
 them in-app with **scroll-resume** and a **"read up to here" highlight** — synced
@@ -54,7 +58,7 @@ curl http://localhost:3000/api/cron/refresh -H "Authorization: Bearer <CRON_SECR
 
 | Command | What it does |
 |---|---|
-| `pnpm dev` | Dev server (Turbopack) |
+| `pnpm dev` | Dev server (webpack) |
 | `pnpm build` | Production build |
 | `pnpm test` | Unit/integration tests (Vitest) |
 | `pnpm typecheck` | `tsc --noEmit` |
@@ -76,3 +80,13 @@ docs/           design spec, implementation plan, DEPLOY.md
 ## Deployment
 
 See [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
+## Contributing
+
+Contributions are welcome — especially new paper-source adapters (one file in
+`lib/sources/`). See [CONTRIBUTING.md](CONTRIBUTING.md) to get started, and
+[SECURITY.md](SECURITY.md) for reporting vulnerabilities privately.
+
+## License
+
+[MIT](LICENSE)

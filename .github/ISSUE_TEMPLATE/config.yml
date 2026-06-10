@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions & ideas
+    url: https://github.com/khuynh22/paper-deck/discussions
+    about: Ask questions, share how you use PaperDeck, or float ideas before filing an issue.
+  - name: Security vulnerability
+    url: https://github.com/khuynh22/paper-deck/security/advisories/new
+    about: Please report security issues privately — see SECURITY.md.
