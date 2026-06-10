@@ -1,3 +1,8 @@
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+# Security: next pins postcss@8.4.31, vulnerable to GHSA XSS via unescaped </style>
+# (fixed in 8.5.10). Remove once next ships with postcss >= 8.5.10.
+overrides:
+  "postcss@<8.5.10": ">=8.5.10"
