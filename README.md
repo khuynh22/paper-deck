@@ -9,7 +9,9 @@ AI/ML papers (Latest / Trending / Famous), lets you star papers to read, and rea
 them in-app with **scroll-resume** and a **"read up to here" highlight** — synced
 across your phone and PC.
 
-📺 **[Watch the demo](https://youtu.be/vtyx34JvxX0)**
+🚀 **[Try it live](https://ppdeck.com)** · 📺 **[Watch the demo](https://youtu.be/vtyx34JvxX0)**
+
+[![PaperDeck feed — Latest / Trending / Famous AI papers](docs/assets/feed-screenshot.png)](https://youtu.be/vtyx34JvxX0)
 
 ## Features
 
@@ -24,11 +26,6 @@ across your phone and PC.
   (e.g. older "famous" classics).
 - **Resume where you left off** — your scroll position and a "I finished here" marker
   persist per paper, per user.
-
-## Tech stack
-
-Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Supabase
-(Postgres + Auth + RLS) · Vitest. Deploys on Vercel.
 
 ## Local development
 
@@ -92,3 +89,7 @@ Contributions are welcome — especially new paper-source adapters (one file in
 ## License
 
 [MIT](LICENSE)
+
+---
+
+⭐ **If PaperDeck saves you a few tabs, consider [starring the repo](https://github.com/khuynh22/paper-deck)** — it helps other researchers find it.
