@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { AuthButton } from "@/components/AuthButton";
+import { BrandMark } from "@/components/BrandMark";
 import { SearchBar } from "@/components/SearchBar";
 
 export async function SiteHeader() {
@@ -16,9 +17,7 @@ export async function SiteHeader() {
     <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4">
         <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
-            ƒ
-          </span>
+          <BrandMark className="h-7 w-7" />
           PaperDeck
         </Link>
         <nav className="flex items-center gap-1 text-sm">
