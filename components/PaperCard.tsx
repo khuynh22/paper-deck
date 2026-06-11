@@ -43,6 +43,26 @@ export function PaperCard({ paper, starred }: { paper: PaperRow; starred: boolea
           {paper.citations > 0 && <Badge title="Citations">★ {paper.citations.toLocaleString()}</Badge>}
           {paper.hf_upvotes > 0 && <Badge title="Hugging Face upvotes">▲ {paper.hf_upvotes}</Badge>}
           {paper.pwc_stars > 0 && <Badge title="GitHub stars (Papers With Code)">⌥ {paper.pwc_stars.toLocaleString()}</Badge>}
+          {paper.pdf_url && (
+            <a
+              href={paper.pdf_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              PDF ↗
+            </a>
+          )}
+          {paper.source_url && (
+            <a
+              href={paper.source_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              arXiv ↗
+            </a>
+          )}
         </div>
       </div>
 

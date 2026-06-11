@@ -2,6 +2,7 @@ import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { AuthButton } from "@/components/AuthButton";
 import { BrandMark } from "@/components/BrandMark";
+import { GitHubLink } from "@/components/GitHubLink";
 import { SearchBar } from "@/components/SearchBar";
 
 export async function SiteHeader() {
@@ -28,6 +29,7 @@ export async function SiteHeader() {
           <Link href="/library" className="rounded-md px-3 py-1.5 hover:bg-muted">
             Library
           </Link>
+          <GitHubLink className="hidden sm:inline-flex" />
           <div className="ml-2">
             <AuthButton email={email} />
           </div>

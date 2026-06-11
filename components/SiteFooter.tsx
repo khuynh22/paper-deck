@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GITHUB_REPO_URL, GitHubIcon } from "@/components/GitHubLink";
 
 export function SiteFooter() {
   return (
@@ -12,6 +13,15 @@ export function SiteFooter() {
           <Link href="/terms" className="hover:text-foreground">
             Terms
           </Link>
+          <a
+            href={GITHUB_REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 hover:text-foreground"
+          >
+            <GitHubIcon className="h-4 w-4" />
+            GitHub
+          </a>
         </nav>
       </div>
     </footer>
