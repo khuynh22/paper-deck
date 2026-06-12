@@ -20,10 +20,10 @@ type Payload =
 function ReaderSkeleton() {
   return (
     <div className="mx-auto max-w-3xl animate-pulse px-4 py-10">
-      <div className="h-6 w-2/3 rounded bg-muted" />
+      <div className="h-6 w-2/3 rounded bg-tint" />
       <div className="mt-4 space-y-3">
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="h-4 w-full rounded bg-muted" />
+          <div key={i} className="h-4 w-full rounded bg-tint" />
         ))}
       </div>
     </div>
@@ -72,8 +72,8 @@ export function ReaderView({
   const target = payload.sourceUrl ?? payload.pdfUrl;
   return (
     <div className="mx-auto max-w-md px-4 py-20 text-center">
-      <p className="font-medium">No in-app version available</p>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="font-serif text-xl font-medium">No in-app version available</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
         This paper doesn’t have an HTML or PDF we can render in the reader.
       </p>
       {target && (

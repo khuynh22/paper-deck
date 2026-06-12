@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Kicker } from "@/components/ui";
 import { getContinueReading } from "@/lib/db/queries";
 
 export async function ContinueShelf({ userId }: { userId: string }) {
@@ -6,29 +7,32 @@ export async function ContinueShelf({ userId }: { userId: string }) {
   if (items.length === 0) return null;
 
   return (
-    <section className="mb-10">
-      <h2 className="mb-3 text-lg font-semibold tracking-tight">Continue reading</h2>
-      <div className="no-scrollbar flex gap-3 overflow-x-auto pb-1">
-        {items.map(({ paper, scrollPct }) => (
-          <Link
-            key={paper.id}
-            href={`/reader/${paper.id}`}
-            className="flex w-64 shrink-0 flex-col justify-between rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-sm"
-          >
-            <p className="line-clamp-3 text-sm font-medium leading-snug">{paper.title}</p>
-            <div className="mt-3">
-              <p className="mb-2 truncate text-xs text-muted-foreground">
-                {paper.authors.slice(0, 2).join(", ") || "Unknown"}
-              </p>
-              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full bg-primary"
-                  style={{ width: `${Math.round(Math.min(1, Math.max(0, scrollPct)) * 100)}%` }}
+    <section className="mt-5 flex flex-col gap-2.5">
+      <Kicker>Continue reading</Kicker>
+      <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1">
+        {items.map(({ paper, scrollPct }) => {
+          const pct = Math.round(Math.min(1, Math.max(0, scrollPct)) * 100);
+          return (
+            <Link
+              key={paper.id}
+              href={`/reader/${paper.id}`}
+              className="flex w-[226px] shrink-0 flex-col gap-2 rounded-[14px] border border-line bg-card px-4 py-3.5 transition-colors hover:border-accent"
+            >
+              <span className="font-mono text-[10.5px] tracking-wide text-accent">
+                {pct}% READ
+              </span>
+              <span className="line-clamp-3 font-serif text-[15.5px] font-medium leading-[1.32] text-ink">
+                {paper.title}
+              </span>
+              <span className="mt-auto block h-[3px] overflow-hidden rounded-full bg-tint">
+                <span
+                  className="block h-full rounded-full bg-accent"
+                  style={{ width: `${pct}%` }}
                 />
-              </div>
-            </div>
-          </Link>
-        ))}
+              </span>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );

@@ -1,59 +1,92 @@
 @import "tailwindcss";
 
+/*
+  Editorial palette (PaperDeck redesign): warm paper background, single
+  brick-red accent (arXiv nod), amber "read up to here" tint.
+  Theme is switched manually via data-theme on <html> (see app/layout.tsx);
+  an inline script applies the stored preference before first paint.
+*/
 :root {
-  --background: #fafafa;
-  --foreground: #18181b;
+  --bg: #faf8f4;
   --card: #ffffff;
-  --card-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --border: #e4e4e7;
-  --primary: #4f46e5;
-  --primary-foreground: #ffffff;
-  --accent: #f59e0b;
-  --danger: #ef4444;
-  --read-tint: rgba(79, 70, 229, 0.07);
-  --read-accent: #4f46e5;
+  --ink: #211b14;
+  --muted: #837a6d;
+  --faint: #a89e8f;
+  --line: #e8e1d5;
+  --hairline: #f0eae0;
+  --accent: #a03b2e;
+  --accent-contrast: #fff8f2;
+  --accent-soft: #f4e5df;
+  --tint: #f1ebdf;
+  --read-tint: #f8f0dc;
+  --read-accent: #d9a441;
+  --shadow: rgba(46, 32, 18, 0.1);
+  --danger: #b3261e;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #09090b;
-    --foreground: #ededed;
-    --card: #131316;
-    --card-foreground: #ededed;
-    --muted: #1c1c1f;
-    --muted-foreground: #a1a1aa;
-    --border: #27272a;
-    --primary: #818cf8;
-    --primary-foreground: #0b0b12;
-    --accent: #fbbf24;
-    --danger: #f87171;
-    --read-tint: rgba(129, 140, 248, 0.1);
-    --read-accent: #818cf8;
-  }
+[data-theme="dark"] {
+  --bg: #161310;
+  --card: #1f1b15;
+  --ink: #ece5d8;
+  --muted: #9c9183;
+  --faint: #6f665a;
+  --line: #2c261e;
+  --hairline: #221e17;
+  --accent: #d07b5d;
+  --accent-contrast: #1d1410;
+  --accent-soft: #3a241c;
+  --tint: #252018;
+  --read-tint: #2b2414;
+  --read-accent: #b98a3a;
+  --shadow: rgba(0, 0, 0, 0.45);
+  --danger: #e2685c;
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
   --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-border: var(--border);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
+  --color-card-foreground: var(--ink);
+  --color-ink: var(--ink);
+  --color-muted: var(--tint);
+  --color-muted-foreground: var(--muted);
+  --color-faint: var(--faint);
+  --color-border: var(--line);
+  --color-line: var(--line);
+  --color-hairline: var(--hairline);
+  --color-tint: var(--tint);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-contrast);
   --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-instrument-sans);
+  --font-serif: var(--font-newsreader);
+  --font-mono: var(--font-spline-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--ink);
   font-family: var(--font-sans), system-ui, sans-serif;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+@keyframes pd-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pd-enter {
+  animation: pd-fade-up 0.22s ease;
 }
 
 /* ---- Reader: arXiv (LaTeXML) overrides ----
@@ -69,23 +102,21 @@ html .paper-html {
   line-height: 1.7;
 
   /* Map ar5iv color vars to our design tokens */
-  --background-color: var(--background);
-  --text-color: var(--foreground);
-  --border-color: var(--border);
-  --border-light-color: var(--muted-foreground);
-  --link-text-color: var(--primary);
-  --image-background-color: var(--background);
-  --note-mark-color: var(--primary);
-  --email-link-color: var(--primary);
+  --background-color: var(--bg);
+  --text-color: var(--ink);
+  --border-color: var(--line);
+  --border-light-color: var(--muted);
+  --link-text-color: var(--accent);
+  --image-background-color: var(--bg);
+  --note-mark-color: var(--accent);
+  --email-link-color: var(--accent);
 }
 
-@media (prefers-color-scheme: dark) {
-  html .paper-html img {
-    filter: brightness(0.85) contrast(1.1);
-  }
+[data-theme="dark"] .paper-html img {
+  filter: brightness(0.85) contrast(1.1);
 }
 
-/* ---- Read-progress highlight ---- */
+/* ---- Read-progress highlight (amber "read up to here" tint) ---- */
 .paper-html [data-blk].read,
 .read {
   background: var(--read-tint);
@@ -93,7 +124,7 @@ html .paper-html {
   padding-left: 0.6rem;
   margin-left: -0.9rem;
   border-radius: 2px;
-  transition: background 0.2s ease;
+  transition: background 0.25s ease;
 }
 
 /* thin scrollbars on horizontal shelves */

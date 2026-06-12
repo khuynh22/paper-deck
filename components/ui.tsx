@@ -4,12 +4,12 @@ import type { ComponentProps, ReactNode } from "react";
 type Variant = "primary" | "ghost" | "outline";
 
 const base =
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:opacity-50 disabled:pointer-events-none";
-const sizes = "h-9 px-4";
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:opacity-50 disabled:pointer-events-none";
+const sizes = "h-10 px-5";
 const variants: Record<Variant, string> = {
-  primary: "bg-primary text-primary-foreground hover:opacity-90",
-  outline: "border border-border bg-card hover:bg-muted",
-  ghost: "hover:bg-muted text-foreground",
+  primary: "bg-accent text-primary-foreground font-semibold hover:brightness-110",
+  outline: "border border-line bg-transparent text-ink hover:border-accent",
+  ghost: "text-muted-foreground hover:bg-tint hover:text-ink",
 };
 
 export function buttonClass(variant: Variant = "primary", extra = ""): string {
@@ -34,7 +34,7 @@ export function LinkButton({
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-border bg-card text-card-foreground ${className}`}>
+    <div className={`rounded-xl border border-line bg-card text-card-foreground ${className}`}>
       {children}
     </div>
   );
@@ -44,7 +44,7 @@ export function Badge({ children, title }: { children: ReactNode; title?: string
   return (
     <span
       title={title}
-      className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground"
+      className="inline-flex items-center gap-1 rounded-md bg-tint px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
     >
       {children}
     </span>
@@ -53,8 +53,19 @@ export function Badge({ children, title }: { children: ReactNode; title?: string
 
 export function Chip({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+    <span className="inline-flex items-center rounded-full border border-line px-2 py-0.5 font-mono text-xs text-muted-foreground">
       {children}
     </span>
+  );
+}
+
+/** Mono uppercase kicker line ("CONTINUE READING", "ABSTRACT", …). */
+export function Kicker({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <h2
+      className={`font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground ${className}`}
+    >
+      {children}
+    </h2>
   );
 }

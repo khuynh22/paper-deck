@@ -42,17 +42,31 @@ test("shows a Read link to the reader", () => {
   expect(screen.getByRole("link", { name: /read/i })).toHaveAttribute("href", "/reader/p1");
 });
 
-test("renders citation and upvote signals but hides zero ones", () => {
+test("shows one signal — citations win over upvotes", () => {
   render(<PaperCard paper={paper} starred={false} />);
-  expect(screen.getByText(/★ 42/)).toBeInTheDocument();
-  expect(screen.getByText(/▲ 12/)).toBeInTheDocument();
-  expect(screen.queryByText(/⌥/)).not.toBeInTheDocument(); // pwc_stars is 0
+  expect(screen.getByText("42 citations")).toBeInTheDocument();
+  expect(screen.queryByText(/▲/)).not.toBeInTheDocument();
 });
 
-test("reflects starred state via aria-pressed", () => {
+test("falls back to upvotes, then 'new', when citations are zero", () => {
+  const { rerender } = render(
+    <PaperCard paper={{ ...paper, citations: 0 }} starred={false} />,
+  );
+  expect(screen.getByText("▲ 12")).toBeInTheDocument();
+
+  rerender(<PaperCard paper={{ ...paper, citations: 0, hf_upvotes: 0 }} starred={false} />);
+  expect(screen.getByText("new")).toBeInTheDocument();
+});
+
+test("reflects saved state via aria-pressed", () => {
   render(<PaperCard paper={paper} starred />);
-  expect(screen.getByRole("button", { name: /remove star/i })).toHaveAttribute(
+  expect(screen.getByRole("button", { name: /remove from library/i })).toHaveAttribute(
     "aria-pressed",
     "true",
   );
+});
+
+test("shows reading progress when started", () => {
+  render(<PaperCard paper={paper} starred={false} progressPct={0.34} />);
+  expect(screen.getByText("34%")).toBeInTheDocument();
 });

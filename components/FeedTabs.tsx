@@ -8,30 +8,34 @@ const LABELS: Record<FeedTab, string> = {
 };
 
 const HINTS: Record<FeedTab, string> = {
-  latest: "Freshest arXiv submissions",
-  trending: "What people are upvoting now",
-  famous: "Most cited / influential",
+  latest: "freshest arXiv submissions",
+  trending: "ranked by community upvotes",
+  famous: "ranked by citations",
 };
 
 export function FeedTabs({ active }: { active: FeedTab }) {
   return (
-    <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-card p-1">
+    <nav className="flex items-baseline gap-6 border-b border-line">
       {FEED_TABS.map((tab) => {
         const isActive = tab === active;
         return (
           <Link
             key={tab}
-            href={`/feed?tab=${tab}`}
-            title={HINTS[tab]}
+            href={tab === "latest" ? "/" : `/?tab=${tab}`}
             aria-current={isActive ? "page" : undefined}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+            className={`-mb-px border-b-2 px-px pb-[11px] pt-2 text-[14.5px] tracking-wide transition-colors ${
+              isActive
+                ? "border-accent font-semibold text-ink"
+                : "border-transparent font-normal text-muted-foreground hover:text-ink"
             }`}
           >
             {LABELS[tab]}
           </Link>
         );
       })}
-    </div>
+      <span className="ml-auto hidden font-mono text-[11px] text-faint min-[540px]:inline">
+        {HINTS[active]}
+      </span>
+    </nav>
   );
 }

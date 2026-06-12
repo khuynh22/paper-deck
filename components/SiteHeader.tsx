@@ -2,7 +2,9 @@ import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { AuthButton } from "@/components/AuthButton";
 import { BrandMark } from "@/components/BrandMark";
+import { HeaderNav } from "@/components/HeaderNav";
 import { SearchBar } from "@/components/SearchBar";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export async function SiteHeader() {
   let email: string | null = null;
@@ -14,24 +16,36 @@ export async function SiteHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <BrandMark className="h-7 w-7" />
-          PaperDeck
+    <header className="sticky top-0 z-40 border-b border-line bg-background/85 backdrop-blur-md">
+      <div className="mx-auto flex h-[58px] max-w-[1060px] items-center gap-2 px-4 sm:px-7">
+        <Link href="/" className="mr-2.5 flex items-center gap-2.5 text-ink">
+          <BrandMark className="h-[27px] w-6" />
+          <span className="font-serif text-[19.5px] font-semibold tracking-tight">PaperDeck</span>
         </Link>
-        <nav className="flex items-center gap-1 text-sm">
-          <SearchBar className="mr-1 hidden w-40 sm:block md:w-56" />
-          <Link href="/feed" className="rounded-md px-3 py-1.5 hover:bg-muted">
-            Feed
-          </Link>
-          <Link href="/library" className="rounded-md px-3 py-1.5 hover:bg-muted">
-            Library
-          </Link>
-          <div className="ml-2">
-            <AuthButton email={email} />
-          </div>
-        </nav>
+
+        <HeaderNav />
+
+        <span className="flex-1" />
+
+        <SearchBar className="hidden w-[200px] md:block" />
+
+        <Link
+          href="/search"
+          title="Search"
+          aria-label="Search"
+          className="hidden h-[34px] w-[34px] items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-tint hover:text-ink sm:flex md:hidden"
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="11" cy="11" r="7" />
+            <line x1="16.8" y1="16.8" x2="21" y2="21" />
+          </svg>
+        </Link>
+
+        <ThemeToggle />
+
+        <div className="ml-0.5">
+          <AuthButton email={email} />
+        </div>
       </div>
     </header>
   );

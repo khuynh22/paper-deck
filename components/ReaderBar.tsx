@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Reader progress chrome: a thin accent bar pinned to the very top of the
+ * viewport, and a floating pill at the bottom with the mark controls.
+ */
 export function ReaderBar({
   marked,
   onMark,
@@ -13,25 +17,26 @@ export function ReaderBar({
   progressPct: number;
   hint?: string | null;
 }) {
+  const pct = Math.round(Math.min(1, Math.max(0, progressPct)) * 100);
+
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/90 backdrop-blur">
-      <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-2.5">
-        <div className="hidden h-1.5 flex-1 overflow-hidden rounded-full bg-muted sm:block">
-          <div
-            className="h-full bg-primary transition-[width] duration-300"
-            style={{ width: `${Math.round(Math.min(1, Math.max(0, progressPct)) * 100)}%` }}
-          />
-        </div>
-        <span className="hidden text-xs text-muted-foreground sm:inline">
-          {Math.round(progressPct * 100)}%
-        </span>
-        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
-        <div className="ml-auto flex items-center gap-2">
+    <>
+      <div className="pointer-events-none fixed inset-x-0 top-0 z-50 h-[3px]">
+        <div
+          className="h-full bg-accent transition-[width] duration-150 ease-linear"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center bg-gradient-to-t from-background via-background/60 to-transparent px-3.5 pb-[calc(16px+env(safe-area-inset-bottom))] pt-10">
+        <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-line bg-card py-[5px] pl-4 pr-1.5 shadow-[0_12px_32px_var(--shadow)]">
+          <span className="mr-1.5 font-mono text-[11.5px] text-muted-foreground">{pct}%</span>
+          {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
           {marked && (
             <button
               type="button"
               onClick={onClear}
-              className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted"
+              className="rounded-full px-2.5 py-[7px] text-[12.5px] text-muted-foreground transition-colors hover:bg-tint"
             >
               Clear mark
             </button>
@@ -39,12 +44,12 @@ export function ReaderBar({
           <button
             type="button"
             onClick={onMark}
-            className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+            className="rounded-full bg-accent px-4 py-2 text-[12.5px] font-semibold text-primary-foreground transition hover:brightness-110"
           >
             I finished here
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 }

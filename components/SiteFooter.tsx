@@ -2,14 +2,14 @@ import Link from "next/link";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border">
-      <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-2 px-4 py-6 text-sm text-muted-foreground sm:flex-row">
+    <footer className="border-t border-hairline">
+      <div className="mx-auto flex max-w-[720px] flex-col items-center justify-between gap-2 px-4 py-6 font-mono text-[11px] tracking-wide text-faint sm:flex-row sm:px-7">
         <span>© {new Date().getFullYear()} PaperDeck</span>
         <nav className="flex items-center gap-4">
-          <Link href="/privacy" className="hover:text-foreground">
+          <Link href="/privacy" className="transition-colors hover:text-accent">
             Privacy
           </Link>
-          <Link href="/terms" className="hover:text-foreground">
+          <Link href="/terms" className="transition-colors hover:text-accent">
             Terms
           </Link>
         </nav>

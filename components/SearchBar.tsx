@@ -1,7 +1,7 @@
 /**
  * A plain GET form that navigates to /search?q=…. No client JS needed — the
  * browser submits and the server page renders results. The header hides it below
- * `sm` via `className`; the results page renders a full-width, prefilled copy.
+ * `md` via `className`; phones reach search through the bottom tab bar.
  */
 export function SearchBar({
   defaultValue = "",
@@ -18,7 +18,7 @@ export function SearchBar({
         defaultValue={defaultValue}
         placeholder="Search papers…"
         aria-label="Search papers"
-        className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+        className="h-[34px] w-full rounded-full border border-line bg-card px-3.5 text-[13.5px] text-ink outline-none transition-colors placeholder:text-muted-foreground focus:border-accent focus-visible:ring-[3px] focus-visible:ring-accent-soft"
       />
     </form>
   );

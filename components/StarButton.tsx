@@ -4,12 +4,34 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toggleStar } from "@/app/actions/star";
 
+function StarIcon({ filled, size }: { filled: boolean; size: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+    >
+      <path d="M12 2.8l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5L12 17.7l-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z" />
+    </svg>
+  );
+}
+
+/**
+ * "Save" toggle (a star under the hood). `variant="row"` is the quiet pill in
+ * list rows; `variant="detail"` is the outlined button on the paper page.
+ */
 export function StarButton({
   paperId,
   initialStarred,
+  variant = "row",
 }: {
   paperId: string;
   initialStarred: boolean;
+  variant?: "row" | "detail";
 }) {
   const [starred, setStarred] = useState(initialStarred);
   const [pending, startTransition] = useTransition();
@@ -33,23 +55,30 @@ export function StarButton({
     });
   }
 
+  const label =
+    variant === "detail" ? (starred ? "Saved" : "Save to library") : starred ? "Saved" : "Save";
+
+  const className =
+    variant === "detail"
+      ? `flex h-[42px] items-center gap-2 rounded-full border border-line px-4.5 text-[13.5px] font-medium transition-colors hover:border-accent ${
+          starred ? "text-accent" : "text-ink"
+        }`
+      : `flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[12.5px] font-medium transition-colors hover:bg-tint ${
+          starred ? "text-accent" : "text-muted-foreground"
+        }`;
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={pending}
       aria-pressed={starred}
-      aria-label={starred ? "Remove star" : "Star this paper"}
-      title={starred ? "Starred" : "Star"}
-      className={`grid h-9 w-9 place-items-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 ${
-        starred
-          ? "border-accent/40 bg-accent/10 text-accent"
-          : "border-border bg-card text-muted-foreground hover:bg-muted"
-      }`}
+      aria-label={starred ? "Remove from library" : "Save to library"}
+      title={starred ? "Saved" : "Save"}
+      className={`${className} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50`}
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill={starred ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
-        <path d="M12 2.5l2.9 5.9 6.5.95-4.7 4.58 1.1 6.47L12 17.9 6.2 20.9l1.1-6.47L2.6 9.85l6.5-.95L12 2.5z" />
-      </svg>
+      <StarIcon filled={starred} size={variant === "detail" ? 14 : 13} />
+      {label}
     </button>
   );
 }

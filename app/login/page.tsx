@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { browserClient } from "@/lib/db/browser";
-import { Button, Card } from "@/components/ui";
+import { BrandMark } from "@/components/BrandMark";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -41,15 +41,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16">
-      <Card className="w-full p-6">
-        <h1 className="text-xl font-semibold">Sign in to PaperDeck</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Sync your stars and reading progress across devices.
+    <div className="pd-enter flex min-h-[calc(100vh-58px)] items-center justify-center px-5 py-10">
+      <div className="flex w-full max-w-[350px] flex-col items-center text-center">
+        <BrandMark className="h-[43px] w-[38px]" />
+
+        <h1 className="mt-5 font-serif text-[28px] font-medium tracking-tight">Welcome back</h1>
+        <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground text-pretty">
+          Your saved papers and reading progress, synced across every device.
         </p>
 
-        <Button variant="outline" className="mt-6 w-full" onClick={signInWithGoogle}>
-          <svg viewBox="0 0 18 18" className="h-[18px] w-[18px]" aria-hidden="true">
+        <button
+          type="button"
+          onClick={signInWithGoogle}
+          className="mt-6 flex h-11 w-full items-center justify-center gap-2.5 rounded-full border border-line bg-card text-sm font-medium text-ink transition-colors hover:border-accent"
+        >
+          <svg viewBox="0 0 18 18" className="h-[16px] w-[16px]" aria-hidden="true">
             <path
               fill="#4285F4"
               d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"
@@ -68,34 +74,43 @@ export default function LoginPage() {
             />
           </svg>
           Continue with Google
-        </Button>
+        </button>
 
-        <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-          <div className="h-px flex-1 bg-border" /> or <div className="h-px flex-1 bg-border" />
+        <div className="my-5 flex w-full items-center gap-3 font-mono text-[11px] text-faint">
+          <div className="h-px flex-1 bg-hairline" /> or <div className="h-px flex-1 bg-hairline" />
         </div>
 
         {sent ? (
-          <p className="rounded-lg bg-muted p-3 text-sm">
-            Check your inbox — we sent a magic sign-in link to <strong>{email}</strong>.
+          <p className="w-full rounded-xl border border-line bg-card p-3.5 text-sm leading-relaxed text-muted-foreground">
+            Check your inbox — we sent a magic sign-in link to{" "}
+            <strong className="text-ink">{email}</strong>.
           </p>
         ) : (
-          <form onSubmit={signInWithEmail} className="space-y-3">
+          <form onSubmit={signInWithEmail} className="w-full space-y-2.5">
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              className="h-11 w-full rounded-full border border-line bg-card px-4 text-center text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-accent focus-visible:ring-[3px] focus-visible:ring-accent-soft"
             />
-            <Button type="submit" className="w-full" disabled={loading}>
+            <button
+              type="submit"
+              disabled={loading}
+              className="h-11 w-full rounded-full border border-line text-sm font-medium text-muted-foreground transition-colors hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-50"
+            >
               {loading ? "Sending…" : "Email me a magic link"}
-            </Button>
+            </button>
           </form>
         )}
 
         {error && <p className="mt-4 text-sm text-danger">{error}</p>}
-      </Card>
+
+        <p className="mt-5 text-xs leading-normal text-faint">
+          By continuing you agree to the Terms of Service and Privacy Policy.
+        </p>
+      </div>
     </div>
   );
 }

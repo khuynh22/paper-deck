@@ -1,12 +1,14 @@
+import Link from "next/link";
 import { PaperCard } from "@/components/PaperCard";
-import { SearchBar } from "@/components/SearchBar";
 import { ExternalSearch } from "@/components/ExternalSearch";
 import { searchCorpus } from "@/lib/corpus/query";
-import { getStarredIds } from "@/lib/db/queries";
+import { getProgressMap, getStarredIds } from "@/lib/db/queries";
 import { currentUser } from "@/lib/auth";
 import type { PaperRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+const TOPIC_CHIPS = ["world models", "diffusion", "attention", "robotics", "RLHF"];
 
 export default async function SearchPage({
   searchParams,
@@ -26,59 +28,90 @@ export default async function SearchPage({
   }
 
   let starred = new Set<string>();
+  let progress = new Map<string, number>();
   try {
     const user = await currentUser();
-    if (user) starred = await getStarredIds(user.id);
+    if (user) {
+      [starred, progress] = await Promise.all([
+        getStarredIds(user.id),
+        getProgressMap(
+          user.id,
+          papers.map((p) => p.id),
+        ),
+      ]);
+    }
   } catch {
     // not signed in / not configured
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Search</h1>
-        <p className="text-sm text-muted-foreground">
-          {q ? <>Results for “{q}”.</> : "Search your corpus and arXiv for papers."}
-        </p>
-      </div>
+    <div className="pd-enter mx-auto max-w-[720px] px-4 py-6 sm:px-7">
+      <form action="/search" method="get" role="search">
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          autoFocus
+          placeholder="Search titles, authors, topics…"
+          aria-label="Search papers"
+          className="w-full border-b-2 border-line bg-transparent pb-3.5 pt-2.5 font-serif text-[21px] font-medium text-ink outline-none transition-colors placeholder:text-faint focus:border-accent sm:text-[27px]"
+        />
+      </form>
 
-      <SearchBar defaultValue={q} className="mb-6 w-full max-w-xl" />
-
-      {!q ? (
-        <div className="mt-8 rounded-xl border border-dashed border-border p-10 text-center">
-          <p className="font-medium">Search for a paper</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Try a title, author, or topic — e.g. <em>diffusion models</em>.
-          </p>
+      {!q && (
+        <div className="mt-4.5 flex flex-wrap gap-2">
+          {TOPIC_CHIPS.map((chip) => (
+            <Link
+              key={chip}
+              href={`/search?q=${encodeURIComponent(chip)}`}
+              className="rounded-full border border-line px-3.5 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:border-accent hover:text-accent"
+            >
+              {chip}
+            </Link>
+          ))}
         </div>
-      ) : dbError ? (
-        <div className="mt-8 rounded-xl border border-border bg-card p-6 text-sm">
+      )}
+
+      {q && !dbError && papers.length > 0 && (
+        <p className="mt-3.5 font-mono text-[11.5px] tracking-wide text-faint">
+          {papers.length === 1 ? "1 result in your corpus" : `${papers.length} results in your corpus`}
+        </p>
+      )}
+
+      {dbError ? (
+        <div className="mt-8 rounded-xl border border-line bg-card p-6 text-sm">
           <p className="font-medium">Couldn’t run the search.</p>
           <p className="mt-1 text-muted-foreground">
             Make sure Supabase is configured and migration <code>0002_search.sql</code> has been
             applied. Details: {dbError}
           </p>
         </div>
-      ) : (
+      ) : q ? (
         <>
           {papers.length === 0 ? (
-            <div className="mt-8 rounded-xl border border-dashed border-border p-10 text-center">
-              <p className="font-medium">No matches in your corpus</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Nothing here yet for “{q}”. Pull fresh matches from arXiv below.
+            <div className="flex flex-col items-center gap-1.5 px-5 py-16 text-center">
+              <p className="font-serif text-xl font-medium">No matches in your corpus</p>
+              <p className="max-w-[340px] text-sm leading-relaxed text-muted-foreground">
+                Nothing here for “{q}” yet. Try a broader term, or pull fresh matches from arXiv
+                below.
               </p>
             </div>
           ) : (
-            <div className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <div className="flex flex-col">
               {papers.map((p) => (
-                <PaperCard key={p.id} paper={p} starred={starred.has(p.id)} />
+                <PaperCard
+                  key={p.id}
+                  paper={p}
+                  starred={starred.has(p.id)}
+                  progressPct={progress.get(p.id) ?? 0}
+                />
               ))}
             </div>
           )}
 
           <ExternalSearch query={q} />
         </>
-      )}
+      ) : null}
     </div>
   );
 }

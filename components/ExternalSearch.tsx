@@ -28,7 +28,7 @@ export function ExternalSearch({ query }: { query: string }) {
   }
 
   return (
-    <div className="mt-8 flex flex-col items-center gap-2 border-t border-border pt-6 text-center">
+    <div className="mt-8 flex flex-col items-center gap-2 border-t border-hairline pt-6 text-center">
       <p className="text-sm text-muted-foreground">Not finding it? Pull fresh matches from arXiv.</p>
       <Button variant="outline" disabled={pending} onClick={onClick}>
         {pending ? "Searching arXiv…" : "Search arXiv for more"}
