@@ -83,6 +83,16 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
             arXiv ↗
           </a>
         )}
+        {paper.pdf_url && (
+          <a
+            href={paper.pdf_url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex h-[42px] items-center rounded-full px-3.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:bg-tint hover:text-accent"
+          >
+            PDF ↗
+          </a>
+        )}
       </div>
 
       {paper.abstract && (

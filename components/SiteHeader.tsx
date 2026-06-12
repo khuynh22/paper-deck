@@ -2,6 +2,7 @@ import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { AuthButton } from "@/components/AuthButton";
 import { BrandMark } from "@/components/BrandMark";
+import { GitHubLink } from "@/components/GitHubLink";
 import { HeaderNav } from "@/components/HeaderNav";
 import { SearchBar } from "@/components/SearchBar";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -40,6 +41,8 @@ export async function SiteHeader() {
             <line x1="16.8" y1="16.8" x2="21" y2="21" />
           </svg>
         </Link>
+
+        <GitHubLink className="hidden sm:flex" />
 
         <ThemeToggle />
 

@@ -5,7 +5,8 @@ import type { PaperRow } from "@/lib/types";
 
 /**
  * One row of the reading list — divider-separated, no box. The title links to
- * the detail page; "Read" jumps straight into the reader.
+ * the detail page; "Read" jumps straight into the reader, with quiet PDF/arXiv
+ * escape hatches alongside.
  */
 export function PaperCard({
   paper,
@@ -49,6 +50,26 @@ export function PaperCard({
         >
           Read →
         </Link>
+        {paper.pdf_url && (
+          <a
+            href={paper.pdf_url}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-full px-2.5 py-1.5 text-[12.5px] font-medium text-faint transition-colors hover:bg-tint hover:text-accent"
+          >
+            PDF ↗
+          </a>
+        )}
+        {paper.source_url && (
+          <a
+            href={paper.source_url}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-full px-2.5 py-1.5 text-[12.5px] font-medium text-faint transition-colors hover:bg-tint hover:text-accent"
+          >
+            arXiv ↗
+          </a>
+        )}
         {pct > 0 && (
           <span className="ml-auto flex items-center gap-2">
             <span className="block h-[3px] w-14 overflow-hidden rounded-full bg-tint">

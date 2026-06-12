@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { serverClient } from "@/lib/db/server";
 import { currentUser } from "@/lib/auth";
 import type { ProgressRow, ReadingStatus } from "@/lib/types";
@@ -54,4 +55,22 @@ export async function saveProgress(paperId: string, update: ProgressUpdate): Pro
   if (update.readerKind !== undefined) row.reader_kind = update.readerKind;
 
   await db.from("reading_progress").upsert(row, { onConflict: "user_id,paper_id" });
+}
+
+/** Remove a single paper from the user's reading history ("Continue reading" shelf). */
+export async function clearProgress(paperId: string): Promise<void> {
+  const user = await currentUser();
+  if (!user) return;
+  const db = await serverClient();
+  await db.from("reading_progress").delete().eq("user_id", user.id).eq("paper_id", paperId);
+  revalidatePath("/");
+}
+
+/** Clear every in-progress paper, emptying the "Continue reading" shelf. */
+export async function clearAllReading(): Promise<void> {
+  const user = await currentUser();
+  if (!user) return;
+  const db = await serverClient();
+  await db.from("reading_progress").delete().eq("user_id", user.id).eq("status", "reading");
+  revalidatePath("/");
 }
