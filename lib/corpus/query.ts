@@ -54,6 +54,18 @@ export async function searchCorpus(query: string, limit = 40): Promise<PaperRow[
   return (data ?? []) as PaperRow[];
 }
 
+/** Fetch a single paper by its arXiv id (for pasted ids/URLs in search). */
+export async function getPaperByArxivId(arxivId: string): Promise<PaperRow | null> {
+  const db = await serverClient();
+  const { data, error } = await db
+    .from("papers")
+    .select("*")
+    .eq("arxiv_id", arxivId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as PaperRow) ?? null;
+}
+
 /** Fetch a single paper by id. */
 export async function getPaper(id: string): Promise<PaperRow | null> {
   const db = await serverClient();

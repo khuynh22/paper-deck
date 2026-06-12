@@ -75,27 +75,77 @@ export async function fetchArxivLatest(
   return parseArxivAtom(await res.text());
 }
 
+/**
+ * Words arXiv's fielded search drops from boolean queries (Lucene's classic
+ * English stopword list). A term like `all:is` inside an AND chain matches
+ * nothing — verified against the live API: "all:attention AND all:is" returns
+ * zero entries even though both words appear in many titles.
+ */
+const ARXIV_STOPWORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "if", "in",
+  "into", "is", "it", "no", "not", "of", "on", "or", "such", "that", "the",
+  "their", "then", "there", "these", "they", "this", "to", "was", "will", "with",
+]);
+
+/**
+ * Pull an arXiv id out of a pasted id, "arXiv:…" reference, or arxiv.org URL
+ * (abs/pdf/html, any version suffix). Returns null for ordinary search text.
+ */
+export function extractArxivId(input: string): string | null {
+  const s = input.trim();
+  const newStyle = String.raw`\d{4}\.\d{4,5}`;
+  const oldStyle = String.raw`[a-z-]+(?:\.[A-Za-z]{2})?\/\d{7}`;
+
+  const url = s.match(
+    new RegExp(
+      String.raw`arxiv\.org\/(?:abs|pdf|html)\/(${newStyle}|${oldStyle})(?:v\d+)?(?:\.pdf)?(?:[?#]|$)`,
+      "i",
+    ),
+  );
+  if (url) return url[1];
+
+  const bare = s.match(new RegExp(String.raw`^(?:arxiv:\s*)?(${newStyle}|${oldStyle})(?:v\d+)?$`, "i"));
+  return bare ? bare[1] : null;
+}
+
+/** Build the arXiv API URL that fetches one paper by id. Pure + testable. */
+export function buildArxivIdUrl(arxivId: string): string {
+  return `https://export.arxiv.org/api/query?id_list=${encodeURIComponent(arxivId)}&max_results=1`;
+}
+
 /** Build the arXiv API URL for a free-text relevance search. Pure + testable. */
 export function buildArxivSearchUrl(query: string, max = 25): string {
-  // arXiv reads a literal space as OR; join whitespace-separated terms with AND so a
-  // multi-word query matches papers about *all* the terms, not any of them. (Verified
-  // against the live API: bare "all:diffusion models" parses as "all:diffusion OR all:models".)
-  const searchQuery = query
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((term) => `all:${encodeURIComponent(term)}`)
-    .join("+AND+");
+  // arXiv reads a literal space as OR, and silently drops stopwords from AND
+  // chains (killing the whole conjunction). So a multi-word query searches the
+  // exact phrase OR the AND of its non-stopword terms: the phrase branch finds
+  // pasted titles ("Attention Is All You Need"), the AND branch keeps topical
+  // queries broad ("diffusion models").
+  const terms = query.trim().split(/\s+/).filter(Boolean);
+  const content = terms.filter((t) => !ARXIV_STOPWORDS.has(t.toLowerCase()));
+  const andTerms = content.length > 0 ? content : terms;
+
+  const andGroup = andTerms.map((t) => `all:${encodeURIComponent(t)}`).join("+AND+");
+  const searchQuery =
+    terms.length > 1
+      ? `all:%22${terms.map(encodeURIComponent).join("+")}%22+OR+` +
+        (andTerms.length > 1 ? `%28${andGroup}%29` : andGroup)
+      : andGroup;
+
   return (
     `https://export.arxiv.org/api/query?search_query=${searchQuery}` +
     `&sortBy=relevance&sortOrder=descending&start=0&max_results=${max}`
   );
 }
 
-/** Search arXiv by free text, most relevant first. Returns [] for a blank query. */
+/**
+ * Search arXiv by free text, most relevant first. A pasted arXiv id or URL
+ * fetches that exact paper. Returns [] for a blank query.
+ */
 export async function searchArxiv(query: string, max = 25): Promise<NormalizedPaper[]> {
   if (!query.trim()) return [];
-  const res = await fetch(buildArxivSearchUrl(query, max), {
+  const id = extractArxivId(query);
+  const url = id ? buildArxivIdUrl(id) : buildArxivSearchUrl(query, max);
+  const res = await fetch(url, {
     headers: { "User-Agent": "PaperDeck/1.0 (research reader)" },
   });
   if (!res.ok) throw new Error(`arxiv ${res.status}`);

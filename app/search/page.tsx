@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { PaperCard } from "@/components/PaperCard";
 import { ExternalSearch } from "@/components/ExternalSearch";
-import { searchCorpus } from "@/lib/corpus/query";
+import { getPaperByArxivId, searchCorpus } from "@/lib/corpus/query";
+import { extractArxivId } from "@/lib/sources/arxiv";
 import { getProgressMap, getStarredIds } from "@/lib/db/queries";
 import { currentUser } from "@/lib/auth";
 import type { PaperRow } from "@/lib/types";
@@ -21,7 +22,15 @@ export default async function SearchPage({
   let dbError: string | null = null;
   if (q) {
     try {
-      papers = await searchCorpus(q);
+      // A pasted arXiv id or URL looks up that exact paper; full-text search
+      // would never match a URL. Falls through to the arXiv pull when absent.
+      const arxivId = extractArxivId(q);
+      if (arxivId) {
+        const hit = await getPaperByArxivId(arxivId);
+        papers = hit ? [hit] : [];
+      } else {
+        papers = await searchCorpus(q);
+      }
     } catch (e) {
       dbError = e instanceof Error ? e.message : String(e);
     }
