@@ -45,6 +45,11 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
             View on arXiv
           </LinkButton>
         )}
+        {paper.pdf_url && (
+          <LinkButton href={paper.pdf_url} variant="outline" target="_blank" rel="noreferrer">
+            PDF
+          </LinkButton>
+        )}
         <StarButton paperId={paper.id} initialStarred={starred} />
       </div>
 
