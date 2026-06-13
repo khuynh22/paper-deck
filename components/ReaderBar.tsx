@@ -1,5 +1,7 @@
 "use client";
 
+import { ReaderProgressBar } from "@/components/ReaderProgressBar";
+
 /**
  * Reader progress chrome: a thin accent bar pinned to the very top of the
  * viewport, and a floating pill at the bottom with the mark controls.
@@ -21,12 +23,7 @@ export function ReaderBar({
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 top-0 z-50 h-[3px]">
-        <div
-          className="h-full bg-accent transition-[width] duration-150 ease-linear"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      <ReaderProgressBar pct={progressPct} />
 
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center bg-gradient-to-t from-background via-background/60 to-transparent px-3.5 pb-[calc(16px+env(safe-area-inset-bottom))] pt-10">
         <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-line bg-card py-[5px] pl-4 pr-1.5 shadow-[0_12px_32px_var(--shadow)]">

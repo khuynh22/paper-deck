@@ -22,3 +22,8 @@ test("only includes the fields present in the update", () => {
   const row = buildProgressRow("u1", "p1", { scrollPct: 0.1 }, NOW);
   expect(row).toEqual({ user_id: "u1", paper_id: "p1", updated_at: NOW, scroll_pct: 0.1 });
 });
+
+test("writes read_pct only when provided", () => {
+  expect(buildProgressRow("u1", "p1", { readPct: 0.42 }, NOW).read_pct).toBe(0.42);
+  expect(buildProgressRow("u1", "p1", { scrollPct: 0.1 }, NOW)).not.toHaveProperty("read_pct");
+});

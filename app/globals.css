@@ -116,17 +116,6 @@ html .paper-html {
   filter: brightness(0.85) contrast(1.1);
 }
 
-/* ---- Read-progress highlight (amber "read up to here" tint) ---- */
-.paper-html [data-blk].read,
-.read {
-  background: var(--read-tint);
-  border-left: 3px solid var(--read-accent);
-  padding-left: 0.6rem;
-  margin-left: -0.9rem;
-  border-radius: 2px;
-  transition: background 0.25s ease;
-}
-
 /* thin scrollbars on horizontal shelves */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

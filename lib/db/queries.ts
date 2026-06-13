@@ -34,11 +34,16 @@ export async function getProgressMap(
   const db = await serverClient();
   const { data } = await db
     .from("reading_progress")
-    .select("paper_id, scroll_pct")
+    .select("paper_id, scroll_pct, read_pct")
     .eq("user_id", userId)
     .in("paper_id", paperIds);
+  // "% read" = deepest read (read_pct). PDF rows leave read_pct at 0, so they
+  // fall back to scroll_pct and their display is unchanged.
   return new Map(
-    (data ?? []).map((r) => [r.paper_id as string, (r.scroll_pct as number) ?? 0]),
+    (data ?? []).map((r) => [
+      r.paper_id as string,
+      Math.max((r.read_pct as number) ?? 0, (r.scroll_pct as number) ?? 0),
+    ]),
   );
 }
 
@@ -52,15 +57,16 @@ export async function getContinueReading(userId: string, limit = 12): Promise<Co
   const db = await serverClient();
   const { data } = await db
     .from("reading_progress")
-    .select("scroll_pct, updated_at, papers(*)")
+    .select("scroll_pct, read_pct, updated_at, papers(*)")
     .eq("user_id", userId)
     .eq("status", "reading")
     .order("updated_at", { ascending: false })
     .limit(limit);
   return (data ?? [])
     .map((r) => {
-      const row = r as unknown as { scroll_pct: number; papers: PaperRow };
-      return { paper: row.papers, scrollPct: row.scroll_pct };
+      const row = r as unknown as { scroll_pct: number; read_pct: number; papers: PaperRow };
+      // Deepest read; PDF rows (read_pct = 0) fall back to scroll_pct unchanged.
+      return { paper: row.papers, scrollPct: Math.max(row.read_pct ?? 0, row.scroll_pct ?? 0) };
     })
     .filter((x) => Boolean(x.paper));
 }

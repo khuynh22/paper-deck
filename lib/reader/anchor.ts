@@ -21,16 +21,3 @@ export function resolveResumeTarget(
   }
   return { type: "pct", value: p.scrollPct };
 }
-
-/** The ordered anchors up to and including the marked one — i.e. the "read" set. */
-export function blocksUpTo(marked: string | null, ordered: string[]): string[] {
-  if (!marked) return [];
-  const idx = ordered.indexOf(marked);
-  return idx < 0 ? [] : ordered.slice(0, idx + 1);
-}
-
-/** Is the marked anchor the final block? (used to flip status -> done) */
-export function isLastBlock(marked: string | null, ordered: string[]): boolean {
-  if (!marked || ordered.length === 0) return false;
-  return ordered[ordered.length - 1] === marked;
-}
