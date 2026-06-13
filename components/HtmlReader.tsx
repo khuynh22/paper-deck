@@ -118,7 +118,7 @@ export function HtmlReader({
         <div
           data-testid="read-rail"
           aria-hidden
-          className="pointer-events-none absolute left-1 top-0 w-[3px] rounded-full bg-accent transition-[height] duration-150 ease-linear"
+          className="pointer-events-none absolute left-1 top-0 w-[3px] rounded-full bg-[var(--read-accent)] transition-[height] duration-150 ease-linear"
           style={{ height: `${clamp01(readPct) * 100}%` }}
         />
         <div
