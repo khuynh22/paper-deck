@@ -23,31 +23,44 @@ export function HtmlReader({
   const [hint, setHint] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const orderedAnchors = useCallback((): string[] => {
+  /**
+   * Leaf content blocks only — a [data-blk] with no nested [data-blk]. arXiv
+   * wraps whole sections in <section data-blk>, so treating those containers as
+   * anchors would bleed the "read" tint across subsections the reader hasn't
+   * reached. Marking, highlighting, and resume all operate on leaves.
+   */
+  const leafBlocks = useCallback((): HTMLElement[] => {
     const el = containerRef.current;
     if (!el) return [];
-    return Array.from(el.querySelectorAll<HTMLElement>("[data-blk]")).map(
-      (n) => n.dataset.blk as string,
+    return Array.from(el.querySelectorAll<HTMLElement>("[data-blk]")).filter(
+      (n) => !n.querySelector("[data-blk]"),
     );
   }, []);
 
+  const orderedAnchors = useCallback(
+    (): string[] => leafBlocks().map((n) => n.dataset.blk as string),
+    [leafBlocks],
+  );
+
   const applyHighlight = useCallback(
     (markAnchor: string | null) => {
-      const el = containerRef.current;
-      if (!el) return;
-      const read = new Set(blocksUpTo(markAnchor, orderedAnchors()));
-      el.querySelectorAll<HTMLElement>("[data-blk]").forEach((node) => {
+      const leaves = leafBlocks();
+      const read = new Set(
+        blocksUpTo(
+          markAnchor,
+          leaves.map((n) => n.dataset.blk as string),
+        ),
+      );
+      leaves.forEach((node) => {
         node.classList.toggle("read", read.has(node.dataset.blk as string));
       });
     },
-    [orderedAnchors],
+    [leafBlocks],
   );
 
-  /** The data-blk of the block currently at the top of the viewport. */
+  /** The data-blk of the leaf block currently at the top of the viewport. */
   const topBlock = useCallback((): string | null => {
-    const el = containerRef.current;
-    if (!el) return null;
-    const nodes = Array.from(el.querySelectorAll<HTMLElement>("[data-blk]"));
+    const nodes = leafBlocks();
     let current: string | null = null;
     for (const node of nodes) {
       if (node.getBoundingClientRect().top - HEADER_OFFSET <= 1) {
@@ -55,7 +68,7 @@ export function HtmlReader({
       } else break;
     }
     return current ?? nodes[0]?.dataset.blk ?? null;
-  }, []);
+  }, [leafBlocks]);
 
   const currentScrollPct = useCallback((): number => {
     const max = document.documentElement.scrollHeight - window.innerHeight;
@@ -129,7 +142,8 @@ export function HtmlReader({
   function onClear() {
     setMarked(null);
     applyHighlight(null);
-    persist({ markedAnchor: null });
+    // Clearing the finished-marker means the paper is in progress again, not done.
+    persist({ markedAnchor: null, status: "reading" });
   }
 
   const content = useMemo(() => ({ __html: html }), [html]);

@@ -3,15 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { serverClient } from "@/lib/db/server";
 import { currentUser } from "@/lib/auth";
-import type { ProgressRow, ReadingStatus } from "@/lib/types";
-
-export interface ProgressUpdate {
-  scrollPct?: number;
-  blockAnchor?: string | null;
-  markedAnchor?: string | null;
-  readerKind?: "html" | "pdf";
-  status?: ReadingStatus;
-}
+import type { ProgressRow } from "@/lib/types";
+import { buildProgressRow, type ProgressUpdate } from "@/lib/db/progressRow";
 
 /** Load the current user's reading progress for a paper. */
 export async function loadProgress(paperId: string): Promise<ProgressRow | null> {
@@ -42,18 +35,7 @@ export async function saveProgress(paperId: string, update: ProgressUpdate): Pro
   const user = await currentUser();
   if (!user) return;
   const db = await serverClient();
-
-  const row: Record<string, unknown> = {
-    user_id: user.id,
-    paper_id: paperId,
-    updated_at: new Date().toISOString(),
-    status: update.status ?? "reading",
-  };
-  if (update.scrollPct !== undefined) row.scroll_pct = update.scrollPct;
-  if (update.blockAnchor !== undefined) row.block_anchor = update.blockAnchor;
-  if (update.markedAnchor !== undefined) row.marked_anchor = update.markedAnchor;
-  if (update.readerKind !== undefined) row.reader_kind = update.readerKind;
-
+  const row = buildProgressRow(user.id, paperId, update, new Date().toISOString());
   await db.from("reading_progress").upsert(row, { onConflict: "user_id,paper_id" });
 }
 

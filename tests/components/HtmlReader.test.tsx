@@ -28,7 +28,7 @@ test("renders the paper HTML content", () => {
   expect(screen.getByText("Gamma")).toBeInTheDocument();
 });
 
-test("highlights blocks up to the saved marker on mount", () => {
+test("highlights blocks up to and including the saved marker on mount", () => {
   const { container } = renderReader({
     scrollPct: 0.3,
     blockAnchor: "1",
@@ -36,10 +36,33 @@ test("highlights blocks up to the saved marker on mount", () => {
     readerKind: "html",
     status: "reading",
   });
-  // blocksUpTo("1") => ["0"] is read; "1" and "2" are not.
+  // Inclusive: marking "1" means "0" and "1" are read; "2" is not.
   expect(container.querySelector('[data-blk="0"]')?.classList.contains("read")).toBe(true);
-  expect(container.querySelector('[data-blk="1"]')?.classList.contains("read")).toBe(false);
+  expect(container.querySelector('[data-blk="1"]')?.classList.contains("read")).toBe(true);
   expect(container.querySelector('[data-blk="2"]')?.classList.contains("read")).toBe(false);
+});
+
+test("marking inside a subsection does not tint the enclosing section container", () => {
+  // arXiv/ar5iv wraps a whole section in <section>, with subsections inside.
+  // Finishing 2.1 must not paint .read on the <section> (its tint would bleed
+  // across 2.2, 2.3…). Only leaf content blocks should ever be highlighted.
+  const nested = `<section data-blk="0"><p data-blk="1">two-one-a</p><p data-blk="2">two-one-b</p></section><p data-blk="3">two-two</p>`;
+  const { container } = render(
+    <HtmlReader
+      paperId="p1"
+      html={nested}
+      initialProgress={{
+        scrollPct: 0.2,
+        blockAnchor: "1",
+        markedAnchor: "1",
+        readerKind: "html",
+        status: "reading",
+      }}
+    />,
+  );
+  expect(container.querySelector('[data-blk="0"]')?.classList.contains("read")).toBe(false);
+  expect(container.querySelector('[data-blk="1"]')?.classList.contains("read")).toBe(true);
+  expect(container.querySelector('[data-blk="3"]')?.classList.contains("read")).toBe(false);
 });
 
 test("shows the reader controls", () => {
@@ -62,4 +85,15 @@ test("clicking 'I finished here' persists a marker and applies highlight", () =>
 
   // The "Clear mark" control now appears.
   expect(screen.getByRole("button", { name: /clear mark/i })).toBeInTheDocument();
+});
+
+test("clearing the mark returns the paper to 'reading' so a finished paper isn't stuck done", () => {
+  renderReader(null);
+  // In jsdom every block sits at top 0, so this marks the last block => 'done'.
+  fireEvent.click(screen.getByRole("button", { name: /i finished here/i }));
+  fireEvent.click(screen.getByRole("button", { name: /clear mark/i }));
+
+  const lastUpdate = saveProgress.mock.calls.at(-1)![1];
+  expect(lastUpdate.markedAnchor).toBeNull();
+  expect(lastUpdate.status).toBe("reading");
 });

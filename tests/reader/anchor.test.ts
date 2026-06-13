@@ -22,8 +22,8 @@ test("falls back to scroll pct when there is no anchor", () => {
   });
 });
 
-test("blocksUpTo returns the exclusive read set above the mark", () => {
-  expect(blocksUpTo("2", ["0", "1", "2", "3"])).toEqual(["0", "1"]);
+test("blocksUpTo returns the read set up to and including the mark", () => {
+  expect(blocksUpTo("2", ["0", "1", "2", "3"])).toEqual(["0", "1", "2"]);
 });
 
 test("blocksUpTo is empty with no mark", () => {

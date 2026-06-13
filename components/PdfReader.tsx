@@ -115,7 +115,8 @@ export function PdfReader({
 
   function onClear() {
     setMarked(null);
-    persist({ markedAnchor: null });
+    // Clearing the finished-marker means the paper is in progress again, not done.
+    persist({ markedAnchor: null, status: "reading" });
   }
 
   if (error) {
