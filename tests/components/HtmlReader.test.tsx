@@ -1,5 +1,5 @@
 import { test, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 // Mock the server action chain (next/headers) so the client component mounts in jsdom.
 const { saveProgress } = vi.hoisted(() => ({
@@ -28,38 +28,29 @@ test("renders the paper HTML content", () => {
   expect(screen.getByText("Gamma")).toBeInTheDocument();
 });
 
-test("highlights blocks up to the saved marker on mount", () => {
+test("does not render manual mark controls — progress is automatic", () => {
+  renderReader(null);
+  expect(screen.queryByRole("button", { name: /i finished here/i })).toBeNull();
+  expect(screen.queryByRole("button", { name: /clear mark/i })).toBeNull();
+});
+
+test("seeds the read rail from the saved read depth", () => {
   const { container } = renderReader({
     scrollPct: 0.3,
     blockAnchor: "1",
-    markedAnchor: "1",
+    markedAnchor: null,
     readerKind: "html",
     status: "reading",
+    readPct: 0.5,
   });
-  // blocksUpTo("1") => ["0"] is read; "1" and "2" are not.
-  expect(container.querySelector('[data-blk="0"]')?.classList.contains("read")).toBe(true);
-  expect(container.querySelector('[data-blk="1"]')?.classList.contains("read")).toBe(false);
-  expect(container.querySelector('[data-blk="2"]')?.classList.contains("read")).toBe(false);
+  const rail = container.querySelector<HTMLElement>('[data-testid="read-rail"]');
+  expect(rail).not.toBeNull();
+  expect(rail!.style.height).toBe("50%");
 });
 
-test("shows the reader controls", () => {
-  renderReader(null);
-  expect(screen.getByRole("button", { name: /i finished here/i })).toBeInTheDocument();
-});
-
-test("clicking 'I finished here' persists a marker and applies highlight", () => {
+test("an unread paper shows an empty rail", () => {
   const { container } = renderReader(null);
-  fireEvent.click(screen.getByRole("button", { name: /i finished here/i }));
-
-  // saveProgress called with a markedAnchor (the marker was set).
-  expect(saveProgress).toHaveBeenCalled();
-  const [, update] = saveProgress.mock.calls[0];
-  expect(update).toHaveProperty("markedAnchor");
-  expect(update.readerKind).toBe("html");
-
-  // After marking, at least the first block is highlighted as read.
-  expect(container.querySelector('[data-blk="0"]')?.classList.contains("read")).toBe(true);
-
-  // The "Clear mark" control now appears.
-  expect(screen.getByRole("button", { name: /clear mark/i })).toBeInTheDocument();
+  const rail = container.querySelector<HTMLElement>('[data-testid="read-rail"]');
+  expect(rail).not.toBeNull();
+  expect(rail!.style.height).toBe("0%");
 });

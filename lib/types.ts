@@ -55,6 +55,8 @@ export interface ProgressRow {
   scrollPct: number;
   blockAnchor: string | null;
   markedAnchor: string | null;
+  /** Deepest scroll fraction reached (0–1) — drives the HTML reader's read rail. */
+  readPct: number;
   readerKind: "html" | "pdf" | null;
   status: ReadingStatus;
 }
