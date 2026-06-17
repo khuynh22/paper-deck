@@ -14,4 +14,8 @@ test("non-trending hints are plain text, not links", () => {
   render(<FeedTabs active="latest" />);
   const hint = screen.getByText("freshest arXiv submissions");
   expect(hint.closest("a")).toBeNull();
+
+  render(<FeedTabs active="famous" />);
+  const famousHint = screen.getByText("ranked by citations");
+  expect(famousHint.closest("a")).toBeNull();
 });

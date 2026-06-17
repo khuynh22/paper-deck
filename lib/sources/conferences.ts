@@ -16,6 +16,7 @@ const VENUES: ConferenceVenue[] = [
 ];
 
 const FIELDS = "title,abstract,year,citationCount,authors,externalIds,openAccessPdf";
+const MAX_PER_VENUE = 50;
 
 /** Stamp a short venue label ("NeurIPS 2024") onto parsed papers. Pure + testable. */
 export function labelConference(papers: NormalizedPaper[], label: string): NormalizedPaper[] {
@@ -45,7 +46,7 @@ export async function fetchConferences(years: string = recentYears()): Promise<N
   for (const v of VENUES) {
     const url =
       `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(v.label)}` +
-      `&venue=${encodeURIComponent(v.s2Venue)}&year=${years}&limit=50&fields=${FIELDS}`;
+      `&venue=${encodeURIComponent(v.s2Venue)}&year=${years}&limit=${MAX_PER_VENUE}&fields=${FIELDS}`;
     const res = await fetch(url, { headers });
     if (!res.ok) {
       if (res.status === 429) continue; // expected without a key — skip this venue

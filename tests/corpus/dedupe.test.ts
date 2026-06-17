@@ -70,5 +70,6 @@ test("venue survives regardless of merge order", () => {
     base({ arxivId: "2401.10", venue: "ICML 2025" }),
     base({ arxivId: "2401.10" }),
   ]);
+  expect(merged).toHaveLength(1);
   expect(merged[0].venue).toBe("ICML 2025");
 });

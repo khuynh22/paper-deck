@@ -1,5 +1,5 @@
 import { test, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 
 // Mock the server action chain (next/headers) so the client component mounts in jsdom.
 const { saveProgress } = vi.hoisted(() => ({
@@ -78,4 +78,25 @@ test("the read rail follows current scroll depth and shrinks on scroll up", () =
   setGeometry(50, 200, 1000);
   fireEvent.scroll(window);
   expect(rail().style.height).toBe("25%");
+});
+
+test("scrolling past the end then back up persists status done, then reading", () => {
+  vi.useFakeTimers();
+  try {
+    renderReader(null);
+
+    // Scroll to the bottom (>= 0.98): (790 + 200) / 1000 = 0.99 -> done
+    setGeometry(790, 200, 1000);
+    fireEvent.scroll(window);
+    act(() => vi.advanceTimersByTime(600)); // flush the 600ms debounced persist
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ status: "done" });
+
+    // Scroll back up (0.5): (300 + 200) / 1000 = 0.5 -> reading (done un-marks)
+    setGeometry(300, 200, 1000);
+    fireEvent.scroll(window);
+    act(() => vi.advanceTimersByTime(600));
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ status: "reading" });
+  } finally {
+    vi.useRealTimers();
+  }
 });

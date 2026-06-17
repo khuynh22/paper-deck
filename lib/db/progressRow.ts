@@ -11,9 +11,11 @@ export interface ProgressUpdate {
 
 /**
  * Build the `reading_progress` upsert payload from a partial update. Only the
- * fields present in `update` are written so that, on conflict, every unspecified
- * column keeps its existing value — including `status`, so a debounced scroll
- * save never downgrades a finished ('done') paper back to 'reading'.
+ * fields present in `update` are written, so on conflict every unspecified
+ * column keeps its existing value — a save that omits `status` never changes it.
+ * The HTML reader, by contrast, sends `status` on every save (derived from the
+ * current read depth), so a reversible scroll-up can move a paper from 'done'
+ * back to 'reading'.
  */
 export function buildProgressRow(
   userId: string,

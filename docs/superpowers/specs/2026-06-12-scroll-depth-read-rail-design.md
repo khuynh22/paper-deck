@@ -49,6 +49,8 @@ document height.
 - Definition: `readPct = max over the session of (scrollY + innerHeight) /
   documentHeight`, i.e. the deepest point that has reached the **bottom** of the
   viewport. Monotonic — only increases.
+
+> **Superseded 2026-06-14:** `readPct` is now the *current* viewport-bottom fraction (it rises and falls with scrolling), not a session max. See `2026-06-14-reader-and-sources-improvements-design.md` §2.
 - The client owns the max: it seeds from the saved `readPct` on mount and bumps
   it on scroll. The server stores whatever the client sends (no server-side max).
 - `readPct ≥ 0.98` ⇒ `status = 'done'` (bottom of the last screen reached), which
