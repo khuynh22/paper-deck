@@ -55,3 +55,20 @@ test("dedupeKey falls back arxiv -> doi -> normalized title", () => {
 test("distinct papers are preserved", () => {
   expect(dedupe([base({ arxivId: "a" }), base({ arxivId: "b" })])).toHaveLength(2);
 });
+
+test("an arxiv row inherits a conference venue when merged", () => {
+  const merged = dedupe([
+    base({ arxivId: "2401.9" }),
+    base({ arxivId: "2401.9", venue: "NeurIPS 2024" }),
+  ]);
+  expect(merged).toHaveLength(1);
+  expect(merged[0].venue).toBe("NeurIPS 2024");
+});
+
+test("venue survives regardless of merge order", () => {
+  const merged = dedupe([
+    base({ arxivId: "2401.10", venue: "ICML 2025" }),
+    base({ arxivId: "2401.10" }),
+  ]);
+  expect(merged[0].venue).toBe("ICML 2025");
+});

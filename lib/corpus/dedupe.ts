@@ -35,6 +35,7 @@ export function dedupe(papers: NormalizedPaper[]): NormalizedPaper[] {
       pdfUrl: cur.pdfUrl ?? p.pdfUrl,
       sourceUrl: cur.sourceUrl ?? p.sourceUrl,
       publishedAt: cur.publishedAt ?? p.publishedAt,
+      venue: cur.venue ?? p.venue,
       categories: Array.from(new Set([...cur.categories, ...p.categories])),
       signals: {
         hfUpvotes: maxSignal(cur.signals.hfUpvotes, p.signals.hfUpvotes),
