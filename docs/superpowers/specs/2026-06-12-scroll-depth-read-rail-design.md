@@ -32,6 +32,11 @@ Replace block-based marking with an **automatic, scroll-position read rail**:
 
 ### Accepted trade-off
 
+> **Superseded 2026-06-14:** the read rail is now fully reversible — scrolling up
+> lowers the rail and can return a finished paper to `reading`. See
+> `2026-06-14-reader-and-sources-improvements-design.md` §2. The monotonic
+> "no un-mark" behavior described below no longer applies.
+
 Deepest-scroll tracking is monotonic and has **no un-mark**: scrolling (or
 flinging) to the bottom fills the rail to 100% permanently. This is inherent to
 the automatic model and was accepted during design.
