@@ -15,6 +15,7 @@ export function toPaperRow(p: NormalizedPaper) {
     pdf_url: p.pdfUrl,
     source_url: p.sourceUrl,
     published_at: p.publishedAt,
+    venue: p.venue ?? null,
     hf_upvotes: p.signals.hfUpvotes ?? 0,
     pwc_stars: p.signals.pwcStars ?? 0,
     citations: p.signals.citations ?? 0,
