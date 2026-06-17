@@ -7,13 +7,15 @@ const LABELS: Record<FeedTab, string> = {
   famous: "Famous",
 };
 
-const HINTS: Record<FeedTab, string> = {
-  latest: "freshest arXiv submissions",
-  trending: "ranked by community upvotes",
-  famous: "ranked by citations",
+const HINTS: Record<FeedTab, { text: string; href?: string }> = {
+  latest: { text: "freshest arXiv submissions" },
+  trending: { text: "ranked by community upvotes", href: "https://huggingface.co/papers" },
+  famous: { text: "ranked by citations" },
 };
 
 export function FeedTabs({ active }: { active: FeedTab }) {
+  const hint = HINTS[active];
+  const hintClass = "ml-auto hidden font-mono text-[11px] text-faint min-[540px]:inline";
   return (
     <nav className="flex items-baseline gap-6 border-b border-line">
       {FEED_TABS.map((tab) => {
@@ -33,9 +35,18 @@ export function FeedTabs({ active }: { active: FeedTab }) {
           </Link>
         );
       })}
-      <span className="ml-auto hidden font-mono text-[11px] text-faint min-[540px]:inline">
-        {HINTS[active]}
-      </span>
+      {hint.href ? (
+        <a
+          href={hint.href}
+          target="_blank"
+          rel="noreferrer"
+          className={`${hintClass} transition-colors hover:text-muted-foreground hover:underline`}
+        >
+          {hint.text}
+        </a>
+      ) : (
+        <span className={hintClass}>{hint.text}</span>
+      )}
     </nav>
   );
 }
