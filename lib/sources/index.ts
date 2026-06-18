@@ -4,6 +4,7 @@ import { fetchArxivLatest } from "./arxiv";
 import { fetchHfDaily } from "./huggingface";
 import { fetchPwcTrending } from "./paperswithcode";
 import { fetchS2Famous } from "./semanticscholar";
+import { fetchConferences } from "./conferences";
 import { fetchScholar } from "./googlescholar";
 
 export interface Source {
@@ -29,6 +30,7 @@ export function sources(): Source[] {
     { id: "huggingface", enabled: true, run: () => fetchHfDaily() },
     { id: "paperswithcode", enabled: false, run: () => fetchPwcTrending() },
     { id: "semanticscholar", enabled: true, run: () => fetchS2Famous() },
+    { id: "conferences", enabled: true, run: () => fetchConferences() },
     { id: "googlescholar", enabled: Boolean(e.SERPAPI_KEY), run: () => fetchScholar() },
   ];
 }

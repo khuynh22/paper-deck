@@ -24,6 +24,11 @@ export function PaperCard({
     <article className="flex flex-col gap-1.5 border-b border-hairline py-5">
       <div className="flex items-baseline gap-3 font-mono text-[11.5px] tracking-wide">
         <span className="text-accent">{paper.categories.slice(0, 2).join(" · ") || "paper"}</span>
+        {paper.venue && (
+          <span className="rounded-sm bg-tint px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-accent">
+            {paper.venue}
+          </span>
+        )}
         {date && <span className="text-faint">{date}</span>}
         <span className="ml-auto whitespace-nowrap text-faint">{signalLine(paper)}</span>
       </div>

@@ -1,5 +1,5 @@
 import { test, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 
 // Mock the server action chain (next/headers) so the client component mounts in jsdom.
 const { saveProgress } = vi.hoisted(() => ({
@@ -20,6 +20,15 @@ beforeEach(() => {
 
 function renderReader(progress: ProgressRow | null) {
   return render(<HtmlReader paperId="p1" html={HTML} initialProgress={progress} />);
+}
+
+function setGeometry(scrollY: number, innerHeight: number, scrollHeight: number) {
+  Object.defineProperty(window, "scrollY", { value: scrollY, configurable: true });
+  Object.defineProperty(window, "innerHeight", { value: innerHeight, configurable: true });
+  Object.defineProperty(document.documentElement, "scrollHeight", {
+    value: scrollHeight,
+    configurable: true,
+  });
 }
 
 test("renders the paper HTML content", () => {
@@ -53,4 +62,41 @@ test("an unread paper shows an empty rail", () => {
   const rail = container.querySelector<HTMLElement>('[data-testid="read-rail"]');
   expect(rail).not.toBeNull();
   expect(rail!.style.height).toBe("0%");
+});
+
+test("the read rail follows current scroll depth and shrinks on scroll up", () => {
+  const { container } = renderReader(null);
+  const rail = () => container.querySelector<HTMLElement>('[data-testid="read-rail"]')!;
+
+  // Doc 1000px, viewport 200px. scrollY=300 => (300+200)/1000 = 0.5.
+  setGeometry(300, 200, 1000);
+  fireEvent.scroll(window);
+  expect(rail().style.height).toBe("50%");
+
+  // Scroll back up: scrollY=50 => (50+200)/1000 = 0.25. A monotonic rail would
+  // stay at 50%; the reversible rail drops to 25%.
+  setGeometry(50, 200, 1000);
+  fireEvent.scroll(window);
+  expect(rail().style.height).toBe("25%");
+});
+
+test("scrolling past the end then back up persists status done, then reading", () => {
+  vi.useFakeTimers();
+  try {
+    renderReader(null);
+
+    // Scroll to the bottom (>= 0.98): (790 + 200) / 1000 = 0.99 -> done
+    setGeometry(790, 200, 1000);
+    fireEvent.scroll(window);
+    act(() => vi.advanceTimersByTime(600)); // flush the 600ms debounced persist
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ status: "done" });
+
+    // Scroll back up (0.5): (300 + 200) / 1000 = 0.5 -> reading (done un-marks)
+    setGeometry(300, 200, 1000);
+    fireEvent.scroll(window);
+    act(() => vi.advanceTimersByTime(600));
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ status: "reading" });
+  } finally {
+    vi.useRealTimers();
+  }
 });
