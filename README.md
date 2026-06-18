@@ -11,7 +11,7 @@ across your phone and PC.
 
 🚀 **[Try it live](https://ppdeck.com)** · 📺 **[Watch the demo](https://youtu.be/vtyx34JvxX0)**
 
-[![PaperDeck feed — Latest / Trending / Famous AI papers](docs/assets/feed-screenshot.png)](https://youtu.be/vtyx34JvxX0)
+[![PaperDeck demo — Latest / Trending / Famous AI papers, star, and read in-app](docs/assets/demo.gif)](https://youtu.be/vtyx34JvxX0)
 
 ## Features
 
