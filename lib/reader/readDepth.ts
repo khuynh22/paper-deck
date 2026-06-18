@@ -1,9 +1,9 @@
 /**
  * Read-depth math, independent of the DOM so it can be unit tested.
  *
- * Read depth is the deepest point that has reached the BOTTOM of the viewport,
- * as a fraction (0–1) of the document height. The reader tracks the running max
- * of this value — it only ever increases — to drive the left-margin "read" rail.
+ * Read depth is the current viewport BOTTOM as a fraction (0–1) of the document
+ * height. The reader tracks this live value (it rises and falls with scrolling)
+ * to drive the left-margin "read" rail, so scrolling back up lowers the rail.
  */
 
 /** At/above this fraction the paper counts as finished (status -> done). */

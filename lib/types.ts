@@ -3,7 +3,8 @@ export type SourceId =
   | "huggingface"
   | "paperswithcode"
   | "semanticscholar"
-  | "googlescholar";
+  | "googlescholar"
+  | "conferences";
 
 /** The common shape every source adapter normalizes its results into. */
 export interface NormalizedPaper {
@@ -18,6 +19,8 @@ export interface NormalizedPaper {
   sourceUrl: string | null;
   /** ISO 8601 string. */
   publishedAt: string | null;
+  /** Short conference label, e.g. "NeurIPS 2024". Set only by the conferences source. */
+  venue?: string | null;
   signals: PaperSignals;
 }
 
@@ -40,6 +43,7 @@ export interface PaperRow {
   pdf_url: string | null;
   source_url: string | null;
   published_at: string | null;
+  venue?: string | null;
   hf_upvotes: number;
   pwc_stars: number;
   citations: number;

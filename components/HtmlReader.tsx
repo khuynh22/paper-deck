@@ -21,7 +21,7 @@ export function HtmlReader({
   initialProgress: ProgressRow | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // Read depth = deepest scroll fraction reached. Monotonic: it only grows.
+  // Read depth = current scroll fraction (viewport bottom). Reversible: scrolling up lowers it.
   const [readPct, setReadPct] = useState(clamp01(initialProgress?.readPct ?? 0));
   const readPctRef = useRef(readPct);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,7 +87,7 @@ export function HtmlReader({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Track deepest scroll + debounce persistence.
+  // Track the current read depth (reversible) + debounce persistence.
   useEffect(() => {
     function onScroll() {
       const frac = readDepthFraction(
@@ -95,10 +95,8 @@ export function HtmlReader({
         window.innerHeight,
         document.documentElement.scrollHeight,
       );
-      if (frac > readPctRef.current) {
-        readPctRef.current = frac;
-        setReadPct(frac);
-      }
+      readPctRef.current = frac;
+      setReadPct(frac);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => persist(), 600);
     }
@@ -114,7 +112,7 @@ export function HtmlReader({
   return (
     <>
       <div className="relative">
-        {/* Read rail: amber bar in the left gutter, filled to the deepest scroll. */}
+        {/* Read rail: amber bar in the left gutter, filled to the current read depth. */}
         <div
           data-testid="read-rail"
           aria-hidden

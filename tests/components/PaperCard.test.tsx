@@ -70,3 +70,13 @@ test("shows reading progress when started", () => {
   render(<PaperCard paper={paper} starred={false} progressPct={0.34} />);
   expect(screen.getByText("34%")).toBeInTheDocument();
 });
+
+test("renders a venue badge when the paper has a venue", () => {
+  render(<PaperCard paper={{ ...paper, venue: "NeurIPS 2024" }} starred={false} />);
+  expect(screen.getByText("NeurIPS 2024")).toBeInTheDocument();
+});
+
+test("omits the venue badge when there is no venue", () => {
+  render(<PaperCard paper={paper} starred={false} />);
+  expect(screen.queryByText(/NeurIPS|ICML|ICLR/)).toBeNull();
+});
