@@ -16,7 +16,7 @@ const VENUES: ConferenceVenue[] = [
 ];
 
 const FIELDS = "title,abstract,year,citationCount,authors,externalIds,openAccessPdf";
-const MAX_PER_VENUE = 50;
+const MAX_PER_VENUE = 100;
 
 /** Stamp a short venue label ("NeurIPS 2024") onto parsed papers. Pure + testable. */
 export function labelConference(papers: NormalizedPaper[], label: string): NormalizedPaper[] {
@@ -26,16 +26,25 @@ export function labelConference(papers: NormalizedPaper[], label: string): Norma
   });
 }
 
-/** The last two calendar years, e.g. "2025-2026" — bounds conference volume. */
+/**
+ * A three-year window ending at the current year, e.g. "2024-2026". Wide enough
+ * to tolerate indexing lag (the current year's proceedings are often still sparse
+ * or unindexed), narrow enough to keep the pull bounded and recent.
+ */
 function recentYears(now: Date = new Date()): string {
   const y = now.getUTCFullYear();
-  return `${y - 1}-${y}`;
+  return `${y - 2}-${y}`;
 }
 
 /**
- * Pull recent papers from top ML conferences (NeurIPS / ICML / ICLR) via Semantic
- * Scholar's venue filter. No API key required (rate-limited; a 429 skips that venue).
- * Each paper is stamped with a short venue badge label.
+ * Pull the most-cited recent papers from top ML conferences (NeurIPS / ICML /
+ * ICLR) via Semantic Scholar's *bulk* search, filtered by venue + year and sorted
+ * by citations. The relevance `/paper/search` endpoint needs a text `query` that
+ * biases results toward papers merely mentioning the venue; bulk filters purely on
+ * venue, returning the whole (sorted) proceedings — we keep the top MAX_PER_VENUE.
+ * No API key required (rate-limited; a 429 skips that venue). Each paper is stamped
+ * with a short venue badge label. Most also exist as arXiv preprints, so dedup
+ * merges the badge onto rows already in the corpus.
  */
 export async function fetchConferences(years: string = recentYears()): Promise<NormalizedPaper[]> {
   const key = env().SEMANTIC_SCHOLAR_API_KEY;
@@ -45,14 +54,16 @@ export async function fetchConferences(years: string = recentYears()): Promise<N
   const all: NormalizedPaper[] = [];
   for (const v of VENUES) {
     const url =
-      `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(v.label)}` +
-      `&venue=${encodeURIComponent(v.s2Venue)}&year=${years}&limit=${MAX_PER_VENUE}&fields=${FIELDS}`;
+      `https://api.semanticscholar.org/graph/v1/paper/search/bulk?venue=${encodeURIComponent(v.s2Venue)}` +
+      `&year=${years}&sort=${encodeURIComponent("citationCount:desc")}&fields=${FIELDS}`;
     const res = await fetch(url, { headers });
     if (!res.ok) {
       if (res.status === 429) continue; // expected without a key — skip this venue
       throw new Error(`conferences ${res.status}`);
     }
-    all.push(...labelConference(parseS2(await res.json()), v.label));
+    // Bulk returns the full venue sorted by citations; keep the most-cited slice.
+    const top = parseS2(await res.json()).slice(0, MAX_PER_VENUE);
+    all.push(...labelConference(top, v.label));
   }
   return all;
 }
