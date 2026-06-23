@@ -64,3 +64,17 @@ export interface ProgressRow {
   readerKind: "html" | "pdf" | null;
   status: ReadingStatus;
 }
+
+/** A user's text highlight (+ optional note) within a paper's HTML reader. */
+export interface Highlight {
+  id: string;
+  paperId: string;
+  blockAnchor: string;
+  /** Char offset into the block's textContent (inclusive). */
+  startOffset: number;
+  /** Char offset into the block's textContent (exclusive). */
+  endOffset: number;
+  /** The selected text — used to display the note and to detect anchor drift. */
+  quote: string;
+  note: string | null;
+}
