@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ReaderView } from "@/components/ReaderView";
 import { getPaper } from "@/lib/corpus/query";
 import { loadProgress } from "@/app/actions/progress";
+import { loadHighlights } from "@/app/actions/highlights";
 import { currentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
   if (!paper) notFound();
 
   const progress = await loadProgress(id);
+  const highlights = await loadHighlights(id);
 
   return (
     <div>
@@ -39,7 +41,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
           </h1>
         </div>
       </div>
-      <ReaderView paperId={id} initialProgress={progress} />
+      <ReaderView paperId={id} initialProgress={progress} initialHighlights={highlights} />
     </div>
   );
 }
