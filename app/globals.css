@@ -20,6 +20,8 @@
   --tint: #f1ebdf;
   --read-tint: #f8f0dc;
   --read-accent: #d9a441;
+  --highlight-bg: rgba(217, 164, 65, 0.34); /* translucent amber */
+  --highlight-line: rgba(217, 164, 65, 0.9);
   --shadow: rgba(46, 32, 18, 0.1);
   --danger: #b3261e;
   color-scheme: light;
@@ -39,6 +41,8 @@
   --tint: #252018;
   --read-tint: #2b2414;
   --read-accent: #b98a3a;
+  --highlight-bg: rgba(185, 138, 58, 0.4);
+  --highlight-line: rgba(185, 138, 58, 0.95);
   --shadow: rgba(0, 0, 0, 0.45);
   --danger: #e2685c;
   color-scheme: dark;
@@ -114,6 +118,23 @@ html .paper-html {
 
 [data-theme="dark"] .paper-html img {
   filter: brightness(0.85) contrast(1.1);
+}
+
+/* ---- Reader: user highlights ---- */
+mark.pd-highlight {
+  background: var(--highlight-bg);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 0.5px;
+  cursor: pointer;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* highlights that carry a note get a subtle underline cue */
+mark.pd-highlight[data-hl-note="1"] {
+  text-decoration: underline;
+  text-decoration-color: var(--highlight-line);
+  text-underline-offset: 3px;
 }
 
 /* thin scrollbars on horizontal shelves */

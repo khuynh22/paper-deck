@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { HtmlReader } from "@/components/HtmlReader";
 import { LinkButton } from "@/components/ui";
-import type { ProgressRow } from "@/lib/types";
+import type { ProgressRow, Highlight } from "@/lib/types";
 
 const PdfReader = dynamic(() => import("@/components/PdfReader").then((m) => m.PdfReader), {
   ssr: false,
@@ -33,9 +33,11 @@ function ReaderSkeleton() {
 export function ReaderView({
   paperId,
   initialProgress,
+  initialHighlights,
 }: {
   paperId: string;
   initialProgress: ProgressRow | null;
+  initialHighlights: Highlight[];
 }) {
   const [payload, setPayload] = useState<Payload | null>(null);
 
@@ -61,7 +63,14 @@ export function ReaderView({
   }
 
   if (payload.kind === "html") {
-    return <HtmlReader paperId={paperId} html={payload.html} initialProgress={initialProgress} />;
+    return (
+      <HtmlReader
+        paperId={paperId}
+        html={payload.html}
+        initialProgress={initialProgress}
+        initialHighlights={initialHighlights}
+      />
+    );
   }
 
   if (payload.kind === "pdf") {

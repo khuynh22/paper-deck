@@ -5,7 +5,8 @@ import { saveProgress } from "@/app/actions/progress";
 import { resolveResumeTarget } from "@/lib/reader/anchor";
 import { readDepthFraction, isComplete } from "@/lib/reader/readDepth";
 import { ReaderProgressBar } from "@/components/ReaderProgressBar";
-import type { ProgressRow } from "@/lib/types";
+import { HighlightLayer } from "@/components/HighlightLayer";
+import type { ProgressRow, Highlight } from "@/lib/types";
 
 const HEADER_OFFSET = 72; // sticky header height-ish
 
@@ -15,10 +16,12 @@ export function HtmlReader({
   paperId,
   html,
   initialProgress,
+  initialHighlights = [],
 }: {
   paperId: string;
   html: string;
   initialProgress: ProgressRow | null;
+  initialHighlights?: Highlight[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   // Read depth = current scroll fraction (viewport bottom). Reversible: scrolling up lowers it.
@@ -123,6 +126,11 @@ export function HtmlReader({
           ref={containerRef}
           className="paper-html px-4 pb-28 pt-6"
           dangerouslySetInnerHTML={content}
+        />
+        <HighlightLayer
+          paperId={paperId}
+          containerRef={containerRef}
+          initialHighlights={initialHighlights}
         />
       </div>
       <ReaderProgressBar pct={readPct} />

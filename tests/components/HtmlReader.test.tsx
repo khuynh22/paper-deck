@@ -7,6 +7,13 @@ const { saveProgress } = vi.hoisted(() => ({
 }));
 vi.mock("@/app/actions/progress", () => ({ saveProgress }));
 
+vi.mock("@/app/actions/highlights", () => ({
+  loadHighlights: vi.fn(async () => []),
+  createHighlight: vi.fn(),
+  updateHighlightNote: vi.fn(async () => {}),
+  deleteHighlight: vi.fn(async () => {}),
+}));
+
 import { HtmlReader } from "@/components/HtmlReader";
 import type { ProgressRow } from "@/lib/types";
 
@@ -35,6 +42,28 @@ test("renders the paper HTML content", () => {
   renderReader(null);
   expect(screen.getByText("Alpha")).toBeInTheDocument();
   expect(screen.getByText("Gamma")).toBeInTheDocument();
+});
+
+test("paints an initial highlight passed to the reader", () => {
+  const { container } = render(
+    <HtmlReader
+      paperId="p1"
+      html={HTML}
+      initialProgress={null}
+      initialHighlights={[
+        {
+          id: "h1",
+          paperId: "p1",
+          blockAnchor: "1",
+          startOffset: 0,
+          endOffset: 4,
+          quote: "Beta",
+          note: null,
+        },
+      ]}
+    />,
+  );
+  expect(container.querySelector('mark.pd-highlight[data-hl-id="h1"]')?.textContent).toBe("Beta");
 });
 
 test("does not render manual mark controls — progress is automatic", () => {
