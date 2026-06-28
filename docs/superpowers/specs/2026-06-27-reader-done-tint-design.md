@@ -21,6 +21,14 @@ it **once the paper is finished**.
 
 ## Decision
 
+> **Superseded 2026-06-28 (progressive reveal):** The "revealed only when done"
+> behavior described below proved confusing in practice — a partly-read paper showed
+> no mark at all until ≥98%. The wash is now **progressive**: always shown, growing
+> down to the deepest point read (`read_max_pct`) and still sticky (never retreats).
+> Decision point 2 ("revealed only when done") and the `read_max_pct ≥ 0.98` reveal
+> gate no longer apply; everything else (sticky monotonic max, data model, z-order,
+> color) stands.
+
 Add a soft yellow **read tint** to the HTML reader that:
 
 1. **Tints the read portion** — a full-width pale-yellow wash behind the text,

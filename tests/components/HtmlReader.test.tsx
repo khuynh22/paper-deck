@@ -131,7 +131,7 @@ test("scrolling past the end then back up persists status done, then reading", (
   }
 });
 
-test("hides the read tint until the paper is finished", () => {
+test("renders the read tint at the saved deepest depth (progressive, visible while reading)", () => {
   const { container } = renderReader({
     scrollPct: 0.5,
     blockAnchor: "1",
@@ -143,49 +143,39 @@ test("hides the read tint until the paper is finished", () => {
   });
   const tint = container.querySelector<HTMLElement>('[data-testid="read-tint"]');
   expect(tint).not.toBeNull();
-  expect(tint).toHaveClass("opacity-0");
-  expect(tint).not.toHaveClass("opacity-100");
+  expect(tint!.style.height).toBe("50%");
+  // Progressive: shown while reading, NOT gated to >= 98%.
+  expect(tint).not.toHaveClass("opacity-0");
 });
 
-test("shows the read tint at the deepest read depth once finished", () => {
-  const { container } = renderReader({
-    scrollPct: 0.9,
-    blockAnchor: "2",
-    markedAnchor: null,
-    readerKind: "html",
-    status: "done",
-    readPct: 0.99,
-    readMaxPct: 0.99,
-  });
+test("an unread paper shows no tint (0% height)", () => {
+  const { container } = renderReader(null);
   const tint = container.querySelector<HTMLElement>('[data-testid="read-tint"]');
   expect(tint).not.toBeNull();
-  // 0.99 * 100 is not exactly 99 in IEEE754, so compare numerically, not by string.
-  expect(parseFloat(tint!.style.height)).toBeCloseTo(99);
-  expect(tint).toHaveClass("opacity-100");
+  expect(tint!.style.height).toBe("0%");
 });
 
-test("the read tint appears at the bottom and stays (sticky) when scrolling back up", () => {
+test("the read tint grows as you read and stays at its deepest point (sticky)", () => {
   const { container } = renderReader(null);
-  const tint = () => container.querySelector<HTMLElement>('[data-testid="read-tint"]');
+  const tint = () => container.querySelector<HTMLElement>('[data-testid="read-tint"]')!;
 
-  // Not finished yet: (300 + 200) / 1000 = 0.5 -> no tint.
+  // Read to the middle: (300 + 200) / 1000 = 0.5 -> wash grows to 50%.
   setGeometry(300, 200, 1000);
   fireEvent.scroll(window);
-  expect(tint()).toHaveClass("opacity-0");
+  expect(tint().style.height).toBe("50%");
+  expect(tint()).not.toHaveClass("opacity-0");
 
-  // Scroll to the bottom (>= 0.98): (790 + 200) / 1000 = 0.99 -> tint appears.
+  // Read to the bottom: (790 + 200) / 1000 = 0.99 -> wash grows to ~99%.
   setGeometry(790, 200, 1000);
   fireEvent.scroll(window);
-  expect(tint()).toHaveClass("opacity-100");
-  expect(parseFloat(tint()!.style.height)).toBeCloseTo(99);
+  expect(parseFloat(tint().style.height)).toBeCloseTo(99);
 
-  // Scroll back up (0.25): the rail shrinks, but the tint stays at its max.
+  // Scroll back up (0.25): the rail shrinks, but the wash stays at its deepest (sticky).
   setGeometry(50, 200, 1000);
   fireEvent.scroll(window);
   const rail = container.querySelector<HTMLElement>('[data-testid="read-rail"]');
   expect(rail!.style.height).toBe("25%");
-  expect(tint()).toHaveClass("opacity-100");
-  expect(parseFloat(tint()!.style.height)).toBeCloseTo(99);
+  expect(parseFloat(tint().style.height)).toBeCloseTo(99);
 });
 
 test("persists read_max_pct as the running max even after scrolling up", () => {
