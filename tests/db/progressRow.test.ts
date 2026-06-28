@@ -27,3 +27,8 @@ test("writes read_pct only when provided", () => {
   expect(buildProgressRow("u1", "p1", { readPct: 0.42 }, NOW).read_pct).toBe(0.42);
   expect(buildProgressRow("u1", "p1", { scrollPct: 0.1 }, NOW)).not.toHaveProperty("read_pct");
 });
+
+test("writes read_max_pct only when provided", () => {
+  expect(buildProgressRow("u1", "p1", { readMaxPct: 0.99 }, NOW).read_max_pct).toBe(0.99);
+  expect(buildProgressRow("u1", "p1", { scrollPct: 0.1 }, NOW)).not.toHaveProperty("read_max_pct");
+});

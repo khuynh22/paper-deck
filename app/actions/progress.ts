@@ -23,6 +23,7 @@ export async function loadProgress(paperId: string): Promise<ProgressRow | null>
     blockAnchor: data.block_anchor,
     markedAnchor: data.marked_anchor,
     readPct: data.read_pct ?? 0,
+    readMaxPct: data.read_max_pct ?? 0,
     readerKind: data.reader_kind,
     status: data.status,
   };
