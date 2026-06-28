@@ -80,6 +80,7 @@ test("seeds the read rail from the saved read depth", () => {
     readerKind: "html",
     status: "reading",
     readPct: 0.5,
+    readMaxPct: 0,
   });
   const rail = container.querySelector<HTMLElement>('[data-testid="read-rail"]');
   expect(rail).not.toBeNull();
@@ -125,6 +126,82 @@ test("scrolling past the end then back up persists status done, then reading", (
     fireEvent.scroll(window);
     act(() => vi.advanceTimersByTime(600));
     expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ status: "reading" });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("hides the read tint until the paper is finished", () => {
+  const { container } = renderReader({
+    scrollPct: 0.5,
+    blockAnchor: "1",
+    markedAnchor: null,
+    readerKind: "html",
+    status: "reading",
+    readPct: 0.5,
+    readMaxPct: 0.5,
+  });
+  expect(container.querySelector('[data-testid="read-tint"]')).toBeNull();
+});
+
+test("shows the read tint at the deepest read depth once finished", () => {
+  const { container } = renderReader({
+    scrollPct: 0.9,
+    blockAnchor: "2",
+    markedAnchor: null,
+    readerKind: "html",
+    status: "done",
+    readPct: 0.99,
+    readMaxPct: 0.99,
+  });
+  const tint = container.querySelector<HTMLElement>('[data-testid="read-tint"]');
+  expect(tint).not.toBeNull();
+  // 0.99 * 100 is not exactly 99 in IEEE754, so compare numerically, not by string.
+  expect(parseFloat(tint!.style.height)).toBeCloseTo(99);
+});
+
+test("the read tint appears at the bottom and stays (sticky) when scrolling back up", () => {
+  const { container } = renderReader(null);
+  const tint = () => container.querySelector<HTMLElement>('[data-testid="read-tint"]');
+
+  // Not finished yet: (300 + 200) / 1000 = 0.5 -> no tint.
+  setGeometry(300, 200, 1000);
+  fireEvent.scroll(window);
+  expect(tint()).toBeNull();
+
+  // Scroll to the bottom (>= 0.98): (790 + 200) / 1000 = 0.99 -> tint appears.
+  setGeometry(790, 200, 1000);
+  fireEvent.scroll(window);
+  expect(tint()).not.toBeNull();
+  expect(parseFloat(tint()!.style.height)).toBeCloseTo(99);
+
+  // Scroll back up (0.25): the rail shrinks, but the tint stays at its max.
+  setGeometry(50, 200, 1000);
+  fireEvent.scroll(window);
+  const rail = container.querySelector<HTMLElement>('[data-testid="read-rail"]');
+  expect(rail!.style.height).toBe("25%");
+  expect(tint()).not.toBeNull();
+  expect(parseFloat(tint()!.style.height)).toBeCloseTo(99);
+});
+
+test("persists read_max_pct as the running max even after scrolling up", () => {
+  vi.useFakeTimers();
+  try {
+    renderReader(null);
+
+    // Bottom: (790 + 200) / 1000 = 0.99
+    setGeometry(790, 200, 1000);
+    fireEvent.scroll(window);
+    act(() => vi.advanceTimersByTime(600));
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ readMaxPct: 0.99 });
+
+    // Up: current depth (300 + 200) / 1000 = 0.5, but the max stays 0.99.
+    setGeometry(300, 200, 1000);
+    fireEvent.scroll(window);
+    act(() => vi.advanceTimersByTime(600));
+    const last = saveProgress.mock.calls.at(-1)?.[1] as Record<string, number>;
+    expect(last.readPct).toBe(0.5);
+    expect(last.readMaxPct).toBe(0.99);
   } finally {
     vi.useRealTimers();
   }

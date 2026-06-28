@@ -27,6 +27,10 @@ export function HtmlReader({
   // Read depth = current scroll fraction (viewport bottom). Reversible: scrolling up lowers it.
   const [readPct, setReadPct] = useState(clamp01(initialProgress?.readPct ?? 0));
   const readPctRef = useRef(readPct);
+  // Deepest read depth ever reached (monotonic). Backs the sticky "read" tint —
+  // it does not retreat when the reader scrolls back up. Independent of status.
+  const [readMaxPct, setReadMaxPct] = useState(clamp01(initialProgress?.readMaxPct ?? 0));
+  const readMaxPctRef = useRef(readMaxPct);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** All block anchors, for validating the saved resume target. */
@@ -64,6 +68,7 @@ export function HtmlReader({
       scrollPct: currentScrollPct(),
       blockAnchor: topBlock(),
       readPct: depth,
+      readMaxPct: readMaxPctRef.current,
       readerKind: "html",
       status: isComplete(depth) ? "done" : "reading",
     }).catch(() => {});
@@ -100,6 +105,10 @@ export function HtmlReader({
       );
       readPctRef.current = frac;
       setReadPct(frac);
+      if (frac > readMaxPctRef.current) {
+        readMaxPctRef.current = frac;
+        setReadMaxPct(frac);
+      }
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => persist(), 600);
     }
@@ -115,16 +124,27 @@ export function HtmlReader({
   return (
     <>
       <div className="relative">
+        {/* Read tint: soft yellow wash behind the text, revealed once the paper is
+            finished and sized to the deepest read depth. Sticky — it does not
+            retreat on scroll-up. Sits behind the text and user highlights (z-0). */}
+        {isComplete(readMaxPct) && (
+          <div
+            data-testid="read-tint"
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 z-0 bg-[var(--read-tint)] transition-opacity duration-300"
+            style={{ height: `${clamp01(readMaxPct) * 100}%` }}
+          />
+        )}
         {/* Read rail: amber bar in the left gutter, filled to the current read depth. */}
         <div
           data-testid="read-rail"
           aria-hidden
-          className="pointer-events-none absolute left-1 top-0 w-[3px] rounded-full bg-[var(--read-accent)] transition-[height] duration-150 ease-linear"
+          className="pointer-events-none absolute left-1 top-0 z-20 w-[3px] rounded-full bg-[var(--read-accent)] transition-[height] duration-150 ease-linear"
           style={{ height: `${clamp01(readPct) * 100}%` }}
         />
         <div
           ref={containerRef}
-          className="paper-html px-4 pb-28 pt-6"
+          className="paper-html relative z-10 px-4 pb-28 pt-6"
           dangerouslySetInnerHTML={content}
         />
         <HighlightLayer
