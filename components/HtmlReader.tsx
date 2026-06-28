@@ -124,17 +124,18 @@ export function HtmlReader({
   return (
     <>
       <div className="relative">
-        {/* Read tint: soft yellow wash behind the text, revealed once the paper is
-            finished and sized to the deepest read depth. Sticky — it does not
-            retreat on scroll-up. Sits behind the text and user highlights (z-0). */}
-        {isComplete(readMaxPct) && (
-          <div
-            data-testid="read-tint"
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 z-0 bg-[var(--read-tint)] transition-opacity duration-300"
-            style={{ height: `${clamp01(readMaxPct) * 100}%` }}
-          />
-        )}
+        {/* Read tint: soft yellow wash behind the text, sized to the deepest read
+            depth. Always mounted (harmless: z-0, pointer-events-none) so the
+            opacity transition can fade it in when the paper is finished. Sticky —
+            does not retreat on scroll-up. */}
+        <div
+          data-testid="read-tint"
+          aria-hidden
+          className={`pointer-events-none absolute inset-x-0 top-0 z-0 bg-[var(--read-tint)] transition-opacity duration-300 ${
+            isComplete(readMaxPct) ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ height: `${clamp01(readMaxPct) * 100}%` }}
+        />
         {/* Read rail: amber bar in the left gutter, filled to the current read depth. */}
         <div
           data-testid="read-rail"

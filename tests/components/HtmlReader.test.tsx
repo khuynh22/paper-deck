@@ -141,7 +141,10 @@ test("hides the read tint until the paper is finished", () => {
     readPct: 0.5,
     readMaxPct: 0.5,
   });
-  expect(container.querySelector('[data-testid="read-tint"]')).toBeNull();
+  const tint = container.querySelector<HTMLElement>('[data-testid="read-tint"]');
+  expect(tint).not.toBeNull();
+  expect(tint).toHaveClass("opacity-0");
+  expect(tint).not.toHaveClass("opacity-100");
 });
 
 test("shows the read tint at the deepest read depth once finished", () => {
@@ -158,6 +161,7 @@ test("shows the read tint at the deepest read depth once finished", () => {
   expect(tint).not.toBeNull();
   // 0.99 * 100 is not exactly 99 in IEEE754, so compare numerically, not by string.
   expect(parseFloat(tint!.style.height)).toBeCloseTo(99);
+  expect(tint).toHaveClass("opacity-100");
 });
 
 test("the read tint appears at the bottom and stays (sticky) when scrolling back up", () => {
@@ -167,12 +171,12 @@ test("the read tint appears at the bottom and stays (sticky) when scrolling back
   // Not finished yet: (300 + 200) / 1000 = 0.5 -> no tint.
   setGeometry(300, 200, 1000);
   fireEvent.scroll(window);
-  expect(tint()).toBeNull();
+  expect(tint()).toHaveClass("opacity-0");
 
   // Scroll to the bottom (>= 0.98): (790 + 200) / 1000 = 0.99 -> tint appears.
   setGeometry(790, 200, 1000);
   fireEvent.scroll(window);
-  expect(tint()).not.toBeNull();
+  expect(tint()).toHaveClass("opacity-100");
   expect(parseFloat(tint()!.style.height)).toBeCloseTo(99);
 
   // Scroll back up (0.25): the rail shrinks, but the tint stays at its max.
@@ -180,7 +184,7 @@ test("the read tint appears at the bottom and stays (sticky) when scrolling back
   fireEvent.scroll(window);
   const rail = container.querySelector<HTMLElement>('[data-testid="read-rail"]');
   expect(rail!.style.height).toBe("25%");
-  expect(tint()).not.toBeNull();
+  expect(tint()).toHaveClass("opacity-100");
   expect(parseFloat(tint()!.style.height)).toBeCloseTo(99);
 });
 
