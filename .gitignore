@@ -49,3 +49,8 @@ yarn-error.log*
 /_*.json
 # Visual before/after diffs from reader-styling experiments (large PNGs + HTML).
 /.preview/
+
+# Superpowers implementation plans + subagent-driven-development scratch — local only,
+# not for upstream. (Design specs under docs/superpowers/specs/ remain tracked.)
+docs/superpowers/plans/
+.superpowers/
