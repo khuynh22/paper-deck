@@ -105,6 +105,13 @@ html .paper-html {
   height: auto;
   line-height: 1.7;
 
+  /* Transparent so the read-mark band (painted behind the column at z-0) shows
+     THROUGH the content, under the text — a true highlight. ar5iv's .paper-html
+     rule paints an opaque var(--background-color) here, which would hide the band;
+     the page body behind is the same --bg, so this is visually identical except the
+     highlight now appears. --background-color (below) is left intact for children. */
+  background-color: transparent;
+
   /* Map ar5iv color vars to our design tokens */
   --background-color: var(--bg);
   --text-color: var(--ink);

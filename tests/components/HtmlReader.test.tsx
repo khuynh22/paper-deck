@@ -1,7 +1,6 @@
 import { test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 
-// Mock the server action chain (next/headers) so the client component mounts in jsdom.
 const { saveProgress } = vi.hoisted(() => ({
   saveProgress: vi.fn(async (_paperId: string, _update: Record<string, unknown>) => {}),
 }));
@@ -21,7 +20,6 @@ const HTML = `<p data-blk="0">Alpha</p><p data-blk="1">Beta</p><p data-blk="2">G
 
 beforeEach(() => {
   saveProgress.mockClear();
-  // jsdom has no layout/scroll; stub so the component's resume effect doesn't warn.
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
 });
 
@@ -38,6 +36,44 @@ function setGeometry(scrollY: number, innerHeight: number, scrollHeight: number)
   });
 }
 
+/** jsdom has no layout: stub the content element's rect + height so onMark can
+ *  compute a boundary fraction. */
+function stubContentGeometry(
+  container: HTMLElement,
+  innerHeight: number,
+  rectTop: number,
+  offsetHeight: number,
+) {
+  Object.defineProperty(window, "innerHeight", { value: innerHeight, configurable: true });
+  const content = container.querySelector<HTMLElement>(".paper-html")!;
+  content.getBoundingClientRect = () =>
+    ({
+      top: rectTop,
+      left: 0,
+      right: 0,
+      bottom: rectTop + offsetHeight,
+      width: 0,
+      height: offsetHeight,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect;
+  Object.defineProperty(content, "offsetHeight", { value: offsetHeight, configurable: true });
+}
+
+const band = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-testid="read-mark"]');
+
+const PROGRESS = (over: Partial<ProgressRow>): ProgressRow => ({
+  scrollPct: 0,
+  blockAnchor: null,
+  markedAnchor: null,
+  readerKind: "html",
+  status: "reading",
+  readPct: 0,
+  markedPct: 0,
+  ...over,
+});
+
 test("renders the paper HTML content", () => {
   renderReader(null);
   expect(screen.getByText("Alpha")).toBeInTheDocument();
@@ -51,80 +87,67 @@ test("paints an initial highlight passed to the reader", () => {
       html={HTML}
       initialProgress={null}
       initialHighlights={[
-        {
-          id: "h1",
-          paperId: "p1",
-          blockAnchor: "1",
-          startOffset: 0,
-          endOffset: 4,
-          quote: "Beta",
-          note: null,
-        },
+        { id: "h1", paperId: "p1", blockAnchor: "1", startOffset: 0, endOffset: 4, quote: "Beta", note: null },
       ]}
     />,
   );
   expect(container.querySelector('mark.pd-highlight[data-hl-id="h1"]')?.textContent).toBe("Beta");
 });
 
-test("does not render manual mark controls — progress is automatic", () => {
-  renderReader(null);
-  expect(screen.queryByRole("button", { name: /i finished here/i })).toBeNull();
-  expect(screen.queryByRole("button", { name: /clear mark/i })).toBeNull();
-});
-
-test("seeds the read rail from the saved read depth", () => {
-  const { container } = renderReader({
-    scrollPct: 0.3,
-    blockAnchor: "1",
-    markedAnchor: null,
-    readerKind: "html",
-    status: "reading",
-    readPct: 0.5,
-  });
-  const rail = container.querySelector<HTMLElement>('[data-testid="read-rail"]');
-  expect(rail).not.toBeNull();
-  expect(rail!.style.height).toBe("50%");
-});
-
-test("an unread paper shows an empty rail", () => {
+test("no auto rail or wash elements remain", () => {
   const { container } = renderReader(null);
-  const rail = container.querySelector<HTMLElement>('[data-testid="read-rail"]');
-  expect(rail).not.toBeNull();
-  expect(rail!.style.height).toBe("0%");
+  expect(container.querySelector('[data-testid="read-rail"]')).toBeNull();
+  expect(container.querySelector('[data-testid="read-tint"]')).toBeNull();
 });
 
-test("the read rail follows current scroll depth and shrinks on scroll up", () => {
+test("an unmarked paper shows no read-mark band", () => {
   const { container } = renderReader(null);
-  const rail = () => container.querySelector<HTMLElement>('[data-testid="read-rail"]')!;
-
-  // Doc 1000px, viewport 200px. scrollY=300 => (300+200)/1000 = 0.5.
-  setGeometry(300, 200, 1000);
-  fireEvent.scroll(window);
-  expect(rail().style.height).toBe("50%");
-
-  // Scroll back up: scrollY=50 => (50+200)/1000 = 0.25. A monotonic rail would
-  // stay at 50%; the reversible rail drops to 25%.
-  setGeometry(50, 200, 1000);
-  fireEvent.scroll(window);
-  expect(rail().style.height).toBe("25%");
+  expect(band(container)).toBeNull();
 });
 
-test("scrolling past the end then back up persists status done, then reading", () => {
+test("renders the read-mark band at the saved marked fraction", () => {
+  const { container } = renderReader(PROGRESS({ readPct: 0.5, markedPct: 0.5 }));
+  expect(parseFloat(band(container)!.style.height)).toBeCloseTo(50);
+});
+
+test("'I finished here' marks down to the viewport bottom and persists", () => {
+  const { container } = renderReader(null);
+  // innerHeight 200, content top -300, height 1000 => (200 + 300) / 1000 = 0.5
+  stubContentGeometry(container, 200, -300, 1000);
+  fireEvent.click(screen.getByRole("button", { name: /i finished here/i }));
+  expect(parseFloat(band(container)!.style.height)).toBeCloseTo(50);
+  expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ markedPct: 0.5, status: "reading" });
+});
+
+test("marking at the bottom persists status done", () => {
+  const { container } = renderReader(null);
+  // (200 + 800) / 1000 = 1.0 => done
+  stubContentGeometry(container, 200, -800, 1000);
+  fireEvent.click(screen.getByRole("button", { name: /i finished here/i }));
+  expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ markedPct: 1, status: "done" });
+});
+
+test("'Clear mark' removes the band and persists an unmarked, reading state", () => {
+  const { container } = renderReader(PROGRESS({ scrollPct: 0.5, status: "done", readPct: 0.9, markedPct: 0.9 }));
+  expect(band(container)).not.toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /clear mark/i }));
+  expect(band(container)).toBeNull();
+  expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ markedPct: 0, status: "reading" });
+});
+
+test("a debounced scroll save does not change the mark or status", () => {
   vi.useFakeTimers();
   try {
-    renderReader(null);
-
-    // Scroll to the bottom (>= 0.98): (790 + 200) / 1000 = 0.99 -> done
-    setGeometry(790, 200, 1000);
-    fireEvent.scroll(window);
-    act(() => vi.advanceTimersByTime(600)); // flush the 600ms debounced persist
-    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ status: "done" });
-
-    // Scroll back up (0.5): (300 + 200) / 1000 = 0.5 -> reading (done un-marks)
+    const { container } = renderReader(PROGRESS({ scrollPct: 0.1, blockAnchor: "0", readPct: 0.2, markedPct: 0.5 }));
     setGeometry(300, 200, 1000);
     fireEvent.scroll(window);
     act(() => vi.advanceTimersByTime(600));
-    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ status: "reading" });
+    const call = saveProgress.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+    expect(call).not.toHaveProperty("status");
+    expect(call).not.toHaveProperty("markedPct");
+    expect(call).toHaveProperty("readPct");
+    // The band is unaffected by scrolling (sticky).
+    expect(parseFloat(band(container)!.style.height)).toBeCloseTo(50);
   } finally {
     vi.useRealTimers();
   }

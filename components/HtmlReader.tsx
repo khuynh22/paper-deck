@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { saveProgress } from "@/app/actions/progress";
 import { resolveResumeTarget } from "@/lib/reader/anchor";
-import { readDepthFraction, isComplete } from "@/lib/reader/readDepth";
-import { ReaderProgressBar } from "@/components/ReaderProgressBar";
+import { readDepthFraction, readBoundaryFraction, isComplete } from "@/lib/reader/readDepth";
+import { ReaderBar } from "@/components/ReaderBar";
 import { HighlightLayer } from "@/components/HighlightLayer";
 import type { ProgressRow, Highlight } from "@/lib/types";
 
@@ -24,9 +24,14 @@ export function HtmlReader({
   initialHighlights?: Highlight[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // Read depth = current scroll fraction (viewport bottom). Reversible: scrolling up lowers it.
-  const [readPct, setReadPct] = useState(clamp01(initialProgress?.readPct ?? 0));
-  const readPctRef = useRef(readPct);
+  // Marked read boundary (0–1 of content height); 0 = unmarked. Set ONLY by the
+  // "I finished here" / "Clear mark" buttons — sticky across scrolling and reloads.
+  const [markedPct, setMarkedPct] = useState(clamp01(initialProgress?.markedPct ?? 0));
+  // Current scroll position (viewport top) — drives the ReaderBar progress chrome.
+  const [progressPct, setProgressPct] = useState(clamp01(initialProgress?.scrollPct ?? 0));
+  const [hint, setHint] = useState<string | null>(null);
+  // Viewport-bottom fraction, written on scroll so the shelf "% read" is unchanged.
+  const readPctRef = useRef(clamp01(initialProgress?.readPct ?? 0));
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** All block anchors, for validating the saved resume target. */
@@ -57,17 +62,19 @@ export function HtmlReader({
     return max > 0 ? clamp01(window.scrollY / max) : 0;
   }, []);
 
-  /** Persist resume position + the running read-depth max (debounced by caller). */
-  const persist = useCallback(() => {
-    const depth = readPctRef.current;
-    saveProgress(paperId, {
-      scrollPct: currentScrollPct(),
-      blockAnchor: topBlock(),
-      readPct: depth,
-      readerKind: "html",
-      status: isComplete(depth) ? "done" : "reading",
-    }).catch(() => {});
-  }, [paperId, currentScrollPct, topBlock]);
+  /** Persist resume position; the buttons pass markedPct/status via `extra`. */
+  const persist = useCallback(
+    (extra: Partial<{ markedPct: number; status: "reading" | "done" }> = {}) => {
+      saveProgress(paperId, {
+        scrollPct: currentScrollPct(),
+        blockAnchor: topBlock(),
+        readPct: readPctRef.current,
+        readerKind: "html",
+        ...extra,
+      }).catch(() => {});
+    },
+    [paperId, currentScrollPct, topBlock],
+  );
 
   // Resume to the saved position once the HTML mounts.
   useEffect(() => {
@@ -90,16 +97,15 @@ export function HtmlReader({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Track the current read depth (reversible) + debounce persistence.
+  // Track scroll position (resume + the shelf's read_pct) and debounce saves.
   useEffect(() => {
     function onScroll() {
-      const frac = readDepthFraction(
+      setProgressPct(currentScrollPct());
+      readPctRef.current = readDepthFraction(
         window.scrollY,
         window.innerHeight,
         document.documentElement.scrollHeight,
       );
-      readPctRef.current = frac;
-      setReadPct(frac);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => persist(), 600);
     }
@@ -108,23 +114,46 @@ export function HtmlReader({
       window.removeEventListener("scroll", onScroll);
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [persist]);
+  }, [currentScrollPct, persist]);
+
+  function onMark() {
+    const el = containerRef.current;
+    if (!el) return;
+    const frac = readBoundaryFraction(
+      window.innerHeight,
+      el.getBoundingClientRect().top,
+      el.offsetHeight,
+    );
+    setMarkedPct(frac);
+    persist({ markedPct: frac, status: isComplete(frac) ? "done" : "reading" });
+    setHint("Marked ✓");
+    setTimeout(() => setHint(null), 1500);
+  }
+
+  function onClear() {
+    setMarkedPct(0);
+    persist({ markedPct: 0, status: "reading" });
+  }
 
   const content = useMemo(() => ({ __html: html }), [html]);
 
   return (
     <>
       <div className="relative">
-        {/* Read rail: amber bar in the left gutter, filled to the current read depth. */}
-        <div
-          data-testid="read-rail"
-          aria-hidden
-          className="pointer-events-none absolute left-1 top-0 w-[3px] rounded-full bg-[var(--read-accent)] transition-[height] duration-150 ease-linear"
-          style={{ height: `${clamp01(readPct) * 100}%` }}
-        />
+        {/* Read mark: pale-yellow band behind the text, from the top down to the
+            button-set boundary. Constrained to the 52rem column (matching
+            .paper-html) so it lands on the paper, not the side margins. */}
+        {markedPct > 0 && (
+          <div
+            data-testid="read-mark"
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-0 z-0 w-full max-w-[52rem] -translate-x-1/2 bg-[var(--read-tint)] transition-[height] duration-150 ease-linear"
+            style={{ height: `${clamp01(markedPct) * 100}%` }}
+          />
+        )}
         <div
           ref={containerRef}
-          className="paper-html px-4 pb-28 pt-6"
+          className="paper-html relative z-10 px-4 pb-28 pt-6"
           dangerouslySetInnerHTML={content}
         />
         <HighlightLayer
@@ -133,7 +162,13 @@ export function HtmlReader({
           initialHighlights={initialHighlights}
         />
       </div>
-      <ReaderProgressBar pct={readPct} />
+      <ReaderBar
+        marked={markedPct > 0}
+        onMark={onMark}
+        onClear={onClear}
+        progressPct={progressPct}
+        hint={hint}
+      />
     </>
   );
 }

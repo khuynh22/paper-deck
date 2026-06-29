@@ -5,6 +5,7 @@ export interface ProgressUpdate {
   blockAnchor?: string | null;
   markedAnchor?: string | null;
   readPct?: number;
+  markedPct?: number;
   readerKind?: "html" | "pdf";
   status?: ReadingStatus;
 }
@@ -33,6 +34,7 @@ export function buildProgressRow(
   if (update.blockAnchor !== undefined) row.block_anchor = update.blockAnchor;
   if (update.markedAnchor !== undefined) row.marked_anchor = update.markedAnchor;
   if (update.readPct !== undefined) row.read_pct = update.readPct;
+  if (update.markedPct !== undefined) row.marked_pct = update.markedPct;
   if (update.readerKind !== undefined) row.reader_kind = update.readerKind;
   return row;
 }

@@ -23,3 +23,17 @@ export function readDepthFraction(
 export function isComplete(readPct: number): boolean {
   return readPct >= DONE_THRESHOLD;
 }
+
+/**
+ * Fraction (0–1) of the content the reader has marked as read — the viewport
+ * bottom relative to the content box. `contentRectTop` is the content element's
+ * viewport-relative top (getBoundingClientRect().top), so scrollY cancels out.
+ */
+export function readBoundaryFraction(
+  viewportHeight: number,
+  contentRectTop: number,
+  contentHeight: number,
+): number {
+  if (contentHeight <= 0) return 0;
+  return Math.min(1, Math.max(0, (viewportHeight - contentRectTop) / contentHeight));
+}
