@@ -12,3 +12,9 @@ begin
     alter table reading_progress rename column read_max_pct to marked_pct;
   end if;
 end $$;
+
+-- The old read_max_pct values were automatic scroll maxes, meaningless under the
+-- new button-set semantics. Reset them so pre-existing papers read as "unmarked"
+-- (no band until the reader taps "I finished here"). Safe: no real button marks
+-- exist yet (the button ships with this change). No-op on a fresh DB (no rows).
+update reading_progress set marked_pct = 0 where marked_pct <> 0;
