@@ -42,10 +42,18 @@ It re-runs on every push (`synchronize`); your ruleset has
    resource owner can only be the bot's own account, so it can't be scoped to
    `khuynh22/paper-deck`. Fine-grained tokens only become an option if the repo moves
    to an org.)
-4. **Add repo secrets** (Settings → Secrets and variables → Actions):
-   - `ANTHROPIC_API_KEY` — your Claude API key from <https://console.anthropic.com>.
+4. **Mint a Claude subscription token** (as yourself, on a machine with Claude Code):
+   run `claude setup-token`. It opens a browser, authenticates against your **Claude
+   Pro/Max** plan, and prints a ~1-year OAuth token. This bills reviews against your
+   subscription's usage limits — **no pay-per-use API credits**. (Free plan is not
+   supported.)
+5. **Add repo secrets** (Settings → Secrets and variables → Actions):
+   - `CLAUDE_CODE_OAUTH_TOKEN` — the token from step 4. The workflow passes it to the
+     action as an **env var** (the action has no OAuth input); Claude Code reads it via
+     its auth precedence chain. To use API credits instead, delete this and set
+     `ANTHROPIC_API_KEY` + switch the step back to the `anthropic_api_key:` input.
    - `REVIEW_BOT_TOKEN` — the bot PAT from step 3.
-5. **Edit `.github/CODEOWNERS`** — replace `@REPLACE-WITH-REVIEW-BOT-USERNAME` with the
+6. **Edit `.github/CODEOWNERS`** — replace `@REPLACE-WITH-REVIEW-BOT-USERNAME` with the
    bot's real `@username`. **Do this before merging** or PRs become unmergeable.
 
 ## Bootstrapping (important)
@@ -60,8 +68,10 @@ action, then the bot handles everything afterward:
 
 ## Cost & safety notes
 
-- Each review costs roughly a few cents to a couple dollars of Claude API usage
-  depending on diff size; `--max-turns 20` caps it. GitHub Actions minutes apply.
+- Each review consumes your Claude **subscription** usage (not API credits) via the
+  OAuth token; `--max-turns 40` caps how much work one review can do. If the
+  subscription's usage limit is hit, the action gets HTTP 429 and the Claude step
+  errors — the gate then fails safe to request-changes. GitHub Actions minutes apply.
 - The gate trusts Claude's self-reported verdict, and the workflow/prompt live in the
   repo — a PR that edits them could influence the outcome. Fine for a solo repo where
   you author every PR; revisit if you add external contributors (require human review

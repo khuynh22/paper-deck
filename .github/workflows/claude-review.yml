@@ -31,10 +31,16 @@ jobs:
           fetch-depth: 0
 
       - name: Claude review
+        # Never let a Claude-side error (max turns, API hiccup) abort the job —
+        # the verdict step below fails safe to request_changes so the bot still
+        # posts a review instead of leaving the PR silently un-reviewed.
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: "--max-turns 20 --model claude-sonnet-5"
+          # Ephemeral CI runner reviewing our own code: skip the interactive
+          # permission gate so Claude can run git/read/write the verdict file
+          # (the default mode denied those, burning all turns on denials).
+          claude_args: "--max-turns 40 --model claude-sonnet-5 --dangerously-skip-permissions"
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
 
@@ -58,6 +64,11 @@ jobs:
                {"verdict":"approve","summary":"one-line reason"}
                or
                {"verdict":"request_changes","summary":"one-line reason"}
+        env:
+          # Auth via Claude Pro/Max subscription (mint with `claude setup-token`)
+          # instead of pay-per-use API credits. The action has no OAuth *input*;
+          # Claude Code reads this env var via its auth precedence chain.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
       - name: Read verdict (fail safe to request_changes)
         id: verdict
