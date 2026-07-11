@@ -1,0 +1,10 @@
+# Code owners. Your "production" ruleset has require_code_owner_review = true, so
+# a PR's approval must come from a code owner listed here. The automated reviewer
+# machine account owns everything, so its Claude-gated approval satisfies the rule.
+#
+# ⚠️ REPLACE the placeholder below with your real bot account's @username BEFORE
+# merging this. An unknown/invalid username here is silently ignored by GitHub,
+# which — with require_code_owner_review on — would leave every PR permanently
+# unmergeable. See docs/claude-pr-reviewer.md.
+
+* @REPLACE-WITH-REVIEW-BOT-USERNAME

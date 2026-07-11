@@ -1,0 +1,94 @@
+name: Claude PR review
+
+# Reviews every PR with Claude and, gated on Claude's own verdict, submits an
+# approving OR request-changes review as a dedicated machine user (the default
+# GITHUB_TOKEN cannot approve PRs, so the approval step needs REVIEW_BOT_TOKEN).
+# See docs/claude-pr-reviewer.md for the one-time account/secret/CODEOWNERS setup.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+# One review per PR at a time; a new push cancels an in-flight review.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Only same-repo PRs (skip forks — they don't receive secrets anyway).
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--max-turns 20 --model claude-sonnet-5"
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+
+            Steps:
+            1. Read AGENTS.md / CLAUDE.md for this project's conventions.
+            2. Diff the PR against its base:
+               `git diff origin/${{ github.event.pull_request.base.ref }}...HEAD`
+            3. Review the changed code for: correctness bugs, security issues,
+               performance regressions, and violations of the project conventions.
+               Ignore pre-existing issues outside the diff.
+            4. Post ONE concise review comment on the PR summarizing what you found,
+               grouped by severity (Blocking / Non-blocking / Nits). If nothing is
+               wrong, say so briefly.
+            5. Decide a verdict:
+               - "approve"  ONLY if there are NO blocking issues (no bugs, no security
+                 holes, nothing that would break the build or tests).
+               - "request_changes" otherwise.
+               Be strict: when uncertain, choose "request_changes".
+            6. MANDATORY: write the verdict to `claude-verdict.json` in the repo root,
+               exactly this shape and nothing else:
+               {"verdict":"approve","summary":"one-line reason"}
+               or
+               {"verdict":"request_changes","summary":"one-line reason"}
+
+      - name: Read verdict (fail safe to request_changes)
+        id: verdict
+        run: |
+          if [ ! -f claude-verdict.json ]; then
+            echo "verdict=request_changes" >> "$GITHUB_OUTPUT"
+            echo "summary=No verdict file produced — failing safe." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          v=$(jq -r 'if .verdict == "approve" then "approve" else "request_changes" end' claude-verdict.json)
+          # Collapse newlines and clamp so the summary is safe to carry as an output.
+          s=$(jq -r '(.summary // "") | gsub("[\\n\\r\\t]"; " ") | .[0:280]' claude-verdict.json)
+          echo "verdict=$v" >> "$GITHUB_OUTPUT"
+          echo "summary=$s" >> "$GITHUB_OUTPUT"
+          echo "Claude verdict: $v — $s"
+
+      - name: Approve (gated on verdict)
+        if: steps.verdict.outputs.verdict == 'approve'
+        env:
+          GH_TOKEN: ${{ secrets.REVIEW_BOT_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          SUMMARY: ${{ steps.verdict.outputs.summary }}
+        run: |
+          gh pr review "$PR" --repo "$REPO" --approve --body "🤖 Claude review passed. $SUMMARY"
+
+      - name: Request changes (gated on verdict)
+        if: steps.verdict.outputs.verdict != 'approve'
+        env:
+          GH_TOKEN: ${{ secrets.REVIEW_BOT_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          SUMMARY: ${{ steps.verdict.outputs.summary }}
+        run: |
+          gh pr review "$PR" --repo "$REPO" --request-changes --body "🤖 Claude requested changes. $SUMMARY"
