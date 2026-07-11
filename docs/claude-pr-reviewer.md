@@ -36,10 +36,12 @@ It re-runs on every push (`synchronize`); your ruleset has
    personal identity.
 2. **Add it to this repo** as a collaborator with **Write** access
    (Settings → Collaborators). Accept the invite from the bot account.
-3. **Create a token for the bot** (while signed in as the bot):
-   - Fine-grained PAT scoped to `khuynh22/paper-deck`, permissions
-     **Pull requests: Read and write** + **Contents: Read-only**. (A classic PAT with
-     `repo` scope also works.)
+3. **Create a token for the bot** (while signed in as the bot). Because this repo is
+   owned by a **personal** account and the bot is only a collaborator, use a **classic
+   PAT** with the **`repo`** scope. (A *fine-grained* PAT will NOT work here — its
+   resource owner can only be the bot's own account, so it can't be scoped to
+   `khuynh22/paper-deck`. Fine-grained tokens only become an option if the repo moves
+   to an org.)
 4. **Add repo secrets** (Settings → Secrets and variables → Actions):
    - `ANTHROPIC_API_KEY` — your Claude API key from <https://console.anthropic.com>.
    - `REVIEW_BOT_TOKEN` — the bot PAT from step 3.
