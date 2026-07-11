@@ -33,6 +33,7 @@ Both have free tiers.
    |---|---|---|
    | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | |
+   | `NEXT_PUBLIC_SITE_URL` | recommended | absolute origin (e.g. `https://ppdeck.com`) for share/OG links; falls back to the Vercel prod domain, then `localhost` |
    | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | server-only; powers cron refresh + reader cache |
    | `OWNER_EMAILS` | ✅ | comma-separated; enables manual refresh + Google Scholar |
    | `CRON_SECRET` | ✅ | Vercel Cron sends it as `Authorization: Bearer <CRON_SECRET>` |

@@ -1,19 +1,38 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Kicker } from "@/components/ui";
 import { StarButton } from "@/components/StarButton";
+import { ShareButton } from "@/components/ShareButton";
 import { getPaper } from "@/lib/corpus/query";
 import { getStarredIds } from "@/lib/db/queries";
 import { loadProgress } from "@/app/actions/progress";
 import { currentUser } from "@/lib/auth";
 import { dateLine, fmtK } from "@/lib/format";
+import { paperMetadata } from "@/lib/meta";
+import { paperPath, paperUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
+
+/** One paper fetch per request, shared by generateMetadata and the page body. */
+const loadPaper = cache(getPaper);
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const paper = await loadPaper(id);
+  if (!paper) return { title: "Paper not found" };
+  return paperMetadata(paper, paperUrl(paper.id));
+}
 
 export default async function PaperDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const paper = await getPaper(id);
+  const paper = await loadPaper(id);
   if (!paper) notFound();
 
   let starred = false;
@@ -73,6 +92,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
           {pct > 0 ? `Continue reading · ${pct}%` : "Read paper"}
         </Link>
         <StarButton paperId={paper.id} initialStarred={starred} variant="detail" />
+        <ShareButton path={paperPath(paper.id)} title={paper.title} />
         {paper.source_url && (
           <a
             href={paper.source_url}
