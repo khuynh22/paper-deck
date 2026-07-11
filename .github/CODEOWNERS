@@ -1,0 +1,10 @@
+# Code owners. Your "production" ruleset has require_code_owner_review = true, so
+# a PR's approval must come from a code owner listed here. The automated reviewer
+# machine account owns everything, so its Claude-gated approval satisfies the rule.
+#
+# ⚠️ The owner below MUST be a real user with Write access to this repo. An
+# unknown/invalid username is silently ignored by GitHub, which — with
+# require_code_owner_review on — would leave every PR permanently unmergeable.
+# Keep this in sync with the review bot. See docs/claude-pr-reviewer.md.
+
+* @CaffeinatedSimon
