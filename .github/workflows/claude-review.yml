@@ -23,8 +23,13 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
-    # Only same-repo PRs (skip forks — they don't receive secrets anyway).
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Skip forks (no secrets) and Dependabot PRs: GitHub runs Dependabot-triggered
+    # workflows with a read-only token and NO repo secrets, so REVIEW_BOT_TOKEN /
+    # CLAUDE_CODE_OAUTH_TOKEN resolve empty and the review/approve steps fail. Dep
+    # bumps are gated by CI (typecheck/build/test) instead.
+    if: >
+      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v4
         with:
