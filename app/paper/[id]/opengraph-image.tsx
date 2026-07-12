@@ -52,8 +52,10 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   let paper = null;
   try {
     paper = await getPaper(id);
-  } catch {
-    // fall through to the generic card
+  } catch (err) {
+    // Never 500 the unfurl — fall through to the generic card. But log, so a
+    // real failure (DB down, etc.) isn't silently invisible.
+    console.error(`opengraph-image: failed to load paper ${id}`, err);
   }
 
   // `||` not `??`: an empty categories array joins to "", which should still fall back.
@@ -91,14 +93,19 @@ export default async function Image({ params }: { params: Promise<{ id: string }
           </div>
           <div
             style={{
-              display: "flex",
+              // Real 3-line clamp: Satori honors -webkit-line-clamp only with
+              // display:-webkit-box (plain overflow:hidden on a flex box did
+              // nothing). Long arXiv titles now truncate instead of crowding
+              // the author line / footer.
+              display: "-webkit-box",
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: 3,
+              overflow: "hidden",
               fontSize: 60,
               fontWeight: 700,
               lineHeight: 1.12,
               color: INK,
               marginTop: 28,
-              // clamp to 3 lines
-              overflow: "hidden",
             }}
           >
             {title}
