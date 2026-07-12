@@ -7,11 +7,21 @@ function normalize(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
+const LOCAL = "http://localhost:3000";
+
 /** Resolve the site origin from an env bag (extracted so it's unit-testable). */
 export function resolveSiteUrl(env: Record<string, string | undefined> = process.env): string {
   const explicit = env.NEXT_PUBLIC_SITE_URL;
   const vercel = env.VERCEL_PROJECT_PRODUCTION_URL;
-  return normalize(explicit || (vercel ? `https://${vercel}` : "http://localhost:3000"));
+  const candidate = normalize(explicit || (vercel ? `https://${vercel}` : LOCAL));
+  // A malformed value (e.g. `ppdeck.com` with no scheme) must not crash the app:
+  // SITE_URL feeds `new URL(...)` in the root layout's metadataBase. Fall back.
+  try {
+    new URL(candidate);
+    return candidate;
+  } catch {
+    return LOCAL;
+  }
 }
 
 export const SITE_URL: string = resolveSiteUrl();

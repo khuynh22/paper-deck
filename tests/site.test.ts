@@ -24,6 +24,11 @@ test("defaults to localhost in dev", () => {
   expect(resolveSiteUrl({})).toBe("http://localhost:3000");
 });
 
+test("a malformed value (e.g. missing scheme) falls back to localhost, never throws", () => {
+  expect(resolveSiteUrl({ NEXT_PUBLIC_SITE_URL: "ppdeck.com" })).toBe("http://localhost:3000");
+  expect(resolveSiteUrl({ NEXT_PUBLIC_SITE_URL: "not a url" })).toBe("http://localhost:3000");
+});
+
 test("paperPath / paperUrl shape", () => {
   expect(paperPath("abc")).toBe("/paper/abc");
   expect(paperUrl("abc")).toBe(`${SITE_URL}/paper/abc`);

@@ -56,7 +56,8 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     // fall through to the generic card
   }
 
-  const kicker = paper?.categories.slice(0, 3).join("  ·  ") ?? "AI / ML RESEARCH";
+  // `||` not `??`: an empty categories array joins to "", which should still fall back.
+  const kicker = paper?.categories.slice(0, 3).join("  ·  ") || "AI / ML RESEARCH";
   const title = clampText(paper?.title, 140) || "Your AI/ML research, on one deck";
   const authors = paper ? authorLine(paper.authors) : "";
   const signal = paper ? signalLine(paper) : "";
@@ -66,6 +67,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
       <div
         style={{
           display: "flex",
+          position: "relative", // containing block for the absolute accent bar below
           width: "100%",
           height: "100%",
           background: BG,
