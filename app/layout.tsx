@@ -4,6 +4,7 @@ import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { BottomNav } from "@/components/BottomNav";
+import { SITE_URL } from "@/lib/site";
 
 const instrumentSans = Instrument_Sans({
   variable: "--font-instrument-sans",
@@ -19,10 +20,21 @@ const splineSansMono = Spline_Sans_Mono({
   subsets: ["latin"],
 });
 
+const DESCRIPTION =
+  "Browse the latest, trending, and famous AI/ML papers, star them, and read in-app with resume + highlight.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: { default: "PaperDeck", template: "%s · PaperDeck" },
-  description:
-    "Browse the latest, trending, and famous AI/ML papers, star them, and read in-app with resume + highlight.",
+  description: DESCRIPTION,
+  openGraph: {
+    type: "website",
+    siteName: "PaperDeck",
+    title: "PaperDeck",
+    description: DESCRIPTION,
+    url: "/",
+  },
+  twitter: { card: "summary_large_image", title: "PaperDeck", description: DESCRIPTION },
 };
 
 /**

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(corepack pnpm typecheck)",
+      "Bash(corepack pnpm lint)",
+      "Bash(corepack pnpm test)"
+    ]
+  }
+}

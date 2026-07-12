@@ -8,6 +8,13 @@ import { z } from "zod";
 const schema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().min(1),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+  /**
+   * Absolute site origin for OG/canonical tags, e.g. https://ppdeck.com. Kept a
+   * plain optional string (not `.url()`): this schema is parsed on every
+   * DB-touching request, and `lib/site.ts` reads `process.env` directly anyway —
+   * so strict URL validation here would only turn an env typo into an app-wide 500.
+   */
+  NEXT_PUBLIC_SITE_URL: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SEMANTIC_SCHOLAR_API_KEY: z.string().optional(),
   SERPAPI_KEY: z.string().optional(),
