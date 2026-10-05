@@ -1,0 +1,11 @@
+# Research exports
+
+Paper details offer BibTeX and current-user Markdown notes. Library offers all saved citations plus a checkbox selection from the displayed page. My Notes exports all the signed-in user's notes, independently of library membership and the current search. Export controls download text directly; there is no HTML preview.
+
+`POST /api/export` requires authentication for every mode. Private stars/highlights are filtered by the authenticated user and protected by RLS. Selected citation IDs must still belong to that user's library, or the request fails. All-library and all-notes queries use ordered UUID cursors until an empty page, and paper lookups use batches of 100. An error in any page or a missing requested paper fails the entire request without a partial download. The UI preserves selections and displays a retryable error. Exports reflect data read during the request, not a transactional snapshot of concurrent edits.
+
+BibTeX uses `@misc` because the corpus does not reliably identify publication type. Known venue is `howpublished`; unknown venue, year, DOI and author fields are omitted. Full paper UUIDs give stable collision-free keys. Unicode is retained as UTF-8, and TeX special characters are escaped as data. Tests parse the output using `@retorquere/bibtex-parser`, the independent Better BibTeX parser.
+
+Markdown attributes every paper with title, authors, canonical HTTP(S) source and available identifiers. Quotes and notes use dynamically sized literal fences, preserving their content and preventing embedded markup from becoming active. Passage links are included only when cached source text agrees with the block, offsets and exact quote; otherwise an explicit unavailable message and paper link are emitted. PDF notes will be supported with the PDF annotation model in #54. Filenames are bounded ASCII slugs; responses are private/no-store attachments with `nosniff`.
+
+Validation includes parser fixtures for special characters, Unicode, missing metadata and identical metadata with different UUIDs; 2,005-row cursor collection and later-page failure; anchor drift; and desktop/mobile real downloads of 1,005 papers and notes, with second-user and anonymous access checks.

@@ -1,3 +1,4 @@
+import { ExportControls } from "@/components/ExportControls";
 import Link from "next/link";
 import { PaperCard } from "@/components/PaperCard";
 import {
@@ -130,6 +131,12 @@ export default async function LibraryPage({
           </p>
         )}
       </form>
+      <ExportControls
+        papers={items.map((item) => ({
+          id: item.paper.id,
+          title: item.paper.title,
+        }))}
+      />
       <CollectionManager collections={collections} params={params} />
       {params.collection && !selected && (
         <p role="alert" className="text-sm text-danger">
