@@ -5,6 +5,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import { useProgressSave } from "@/components/useProgressSave";
 import { ReaderBar } from "@/components/ReaderBar";
 import type { ProgressRow } from "@/lib/types";
+import type { ProgressUpdate } from "@/lib/db/progressRow";
 
 // Load the pdf.js worker from a CDN, pinned to the exact version react-pdf ships
 // (worker and API versions must match). Avoids bundler worker-resolution issues.
@@ -26,11 +27,18 @@ export function PdfReader({
   const [marked, setMarked] = useState<number | null>(
     initialProgress?.markedAnchor ? Number(initialProgress.markedAnchor) : null,
   );
+  const [acknowledgedMark, setAcknowledgedMark] = useState<number | null>(
+    initialProgress?.markedAnchor ? Number(initialProgress.markedAnchor) : null,
+  );
   const [progressPct, setProgressPct] = useState(initialProgress?.scrollPct ?? 0);
-  const { state: saveState, enqueue, retry } = useProgressSave(paperId);
+  const onAcknowledged = useCallback((update: ProgressUpdate) => {
+    if (update.markedAnchor !== undefined) setAcknowledgedMark(update.markedAnchor ? Number(update.markedAnchor) : null);
+  }, []);
+  const { state: saveState, explicitUnsaved, enqueue, retry } = useProgressSave(paperId, onAcknowledged);
   const [error, setError] = useState(false);
   const scrollPageRef = useRef(initialProgress?.blockAnchor ?? "1");
   const lastPageMeasureRef = useRef(-Infinity);
+  const trailingPageRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     function measure() {
@@ -79,14 +87,26 @@ export function PdfReader({
       setProgressPct(pct);
       const now = Date.now();
       if (now - lastPageMeasureRef.current >= 250) {
+        if (trailingPageRef.current !== null) clearTimeout(trailingPageRef.current);
+        trailingPageRef.current = null;
         scrollPageRef.current = String(currentPage());
         lastPageMeasureRef.current = now;
+      } else if (trailingPageRef.current === null) {
+        trailingPageRef.current = setTimeout(() => {
+          trailingPageRef.current = null;
+          scrollPageRef.current = String(currentPage());
+          lastPageMeasureRef.current = Date.now();
+          enqueue({ scrollPct: currentScrollPct(), blockAnchor: scrollPageRef.current, readerKind: "pdf" }, false);
+        }, 250 - (now - lastPageMeasureRef.current));
       }
-      enqueue({ scrollPct: pct, blockAnchor: scrollPageRef.current, readerKind: "pdf" }, false);
+      enqueue({ scrollPct: pct,
+        blockAnchor: trailingPageRef.current === null ? scrollPageRef.current : null,
+        readerKind: "pdf" }, false);
     }
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
+      if (trailingPageRef.current !== null) clearTimeout(trailingPageRef.current);
     };
   }, [currentScrollPct, currentPage, enqueue]);
 
@@ -122,8 +142,8 @@ export function PdfReader({
     persist({ markedAnchor: null, status: "reading" });
   }
 
-  const markPending = marked !== null && Boolean(saveState.explicit) &&
-    (saveState.status === "pending" || saveState.status === "saving" || saveState.status === "error");
+  const markPending = marked !== null && explicitUnsaved;
+  const clearPending = marked === null && explicitUnsaved && acknowledgedMark !== null;
 
   if (error) {
     return (
@@ -147,20 +167,20 @@ export function PdfReader({
           loading={<p className="py-20 text-sm text-muted-foreground">Loading PDF…</p>}
         >
           {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => {
-            const isRead = marked !== null && n <= marked;
+            const isRead = (marked !== null && n <= marked) || (clearPending && n <= acknowledgedMark);
             return (
               <div
                 key={n}
                 data-page={n}
                 className={`relative mb-4 rounded-lg border ${
-                  isRead ? markPending
+                  isRead ? explicitUnsaved
                     ? "border-dashed border-l-[3px] border-l-[var(--read-accent)] bg-[var(--read-tint)] opacity-60"
                     : "border-l-[3px] border-l-[var(--read-accent)] bg-[var(--read-tint)]" : "border-border"
                 }`}
               >
                 {isRead && (
                   <span className="absolute right-2 top-2 z-10 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground">
-                    {markPending ? "unsaved" : "read"}
+                    {clearPending ? "clear unsaved" : markPending ? "unsaved" : "read"}
                   </span>
                 )}
                 <Page
@@ -177,6 +197,7 @@ export function PdfReader({
       <ReaderBar
         marked={marked !== null}
         markPending={markPending}
+        clearPending={clearPending}
         onMark={onMark}
         onClear={onClear}
         progressPct={progressPct}

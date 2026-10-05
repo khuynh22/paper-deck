@@ -241,17 +241,21 @@ test("a new selection does not inherit the previous highlight's Saved message", 
   expect(screen.getByRole("status", { name: "Highlight save" })).toBeEmptyDOMElement();
 });
 
-test("cancelling a lost-response creation retains its UUID for the same selection", async () => {
+test("cancelling an uncertain creation deletes its ID before allowing a new range", async () => {
   actions.createHighlight.mockResolvedValueOnce(FAILURE);
-  actions.createHighlight.mockResolvedValueOnce({ ok: true, data: INITIAL });
+  actions.createHighlight.mockResolvedValueOnce({ ok: true, data: { ...INITIAL,
+    startOffset: 8, endOffset: 18, quote: "n models a" } });
   const { container } = render(<Harness initial={[]} />);
   selectText(container, 10, 16);
   await act(async () => fireEvent.click(screen.getByRole("button", { name: /^highlight$/i })));
   const firstId = actions.createHighlight.mock.calls[0][1];
-  fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
-  selectText(container, 10, 16);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^cancel$/i })));
+  expect(actions.deleteHighlight).toHaveBeenCalledWith(firstId);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  selectText(container, 8, 18);
   await act(async () => fireEvent.click(screen.getByRole("button", { name: /^highlight$/i })));
-  expect(actions.createHighlight.mock.calls[1][1]).toBe(firstId);
+  expect(actions.createHighlight.mock.calls[1][0]).toMatchObject({ startOffset: 8, endOffset: 18 });
+  expect(actions.createHighlight.mock.calls[1][1]).not.toBe(firstId);
   expect(container.querySelectorAll("mark")).toHaveLength(1);
 });
 
@@ -281,20 +285,24 @@ test("a non-retryable note failure keeps the draft but offers Cancel instead of 
   expect(container.querySelector("mark.pd-highlight")).toBeNull();
 });
 
-test("an overlapping reselection retries the unresolved original instead of creating another range", async () => {
+test("failed discard stays visible and Retry deletes rather than recreates the highlight", async () => {
   actions.createHighlight.mockResolvedValueOnce(FAILURE);
-  actions.createHighlight.mockResolvedValueOnce({ ok: true, data: INITIAL });
+  actions.deleteHighlight.mockResolvedValueOnce(FAILURE);
+  actions.deleteHighlight.mockResolvedValueOnce({ ok: true, data: undefined });
   const { container } = render(<Harness initial={[]} />);
   selectText(container, 10, 16);
   await act(async () => fireEvent.click(screen.getByRole("button", { name: /^highlight$/i })));
   const firstId = actions.createHighlight.mock.calls[0][1];
-  fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
-  selectText(container, 8, 18);
-  expect(screen.getByRole("alert")).toHaveTextContent(/earlier highlight/i);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^cancel$/i })));
+  expect(screen.getByRole("alert")).toHaveTextContent(/discard/i);
+  window.getSelection()?.removeAllRanges();
+  fireEvent.mouseUp(document.body);
+  expect(screen.getByRole("alert")).toHaveTextContent(/discard/i);
   await act(async () => fireEvent.click(screen.getByRole("button", { name: /^retry$/i })));
-  expect(actions.createHighlight.mock.calls[1][0]).toMatchObject({ startOffset: 10, endOffset: 16 });
-  expect(actions.createHighlight.mock.calls[1][1]).toBe(firstId);
-  expect(container.querySelectorAll("mark")).toHaveLength(1);
+  expect(actions.deleteHighlight).toHaveBeenCalledTimes(2);
+  expect(actions.deleteHighlight).toHaveBeenLastCalledWith(firstId);
+  expect(actions.createHighlight).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
 test("highlight status region stays mounted through create and success", async () => {

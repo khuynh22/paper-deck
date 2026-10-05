@@ -16,7 +16,10 @@ export class ProgressSaver {
   private state: SaveState = { status: "idle", explicit: false };
   private listeners = new Set<() => void>();
 
-  constructor(private write: (update: ProgressUpdate) => Promise<MutationResult>) {}
+  constructor(
+    private write: (update: ProgressUpdate) => Promise<MutationResult>,
+    private onAcknowledged?: (update: ProgressUpdate) => void,
+  ) {}
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -67,6 +70,7 @@ export class ProgressSaver {
     }
     this.running = false;
     this.explicitRunning = false;
+    if (result.ok) this.onAcknowledged?.(sent);
     if (!result.ok) {
       // Newer fields win; retain older fields (e.g. a mark) that newer scrolls
       // didn't supply. Retry sends intent, never a fresh viewport measurement.

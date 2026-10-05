@@ -5,15 +5,18 @@ import { saveProgress } from "@/app/actions/progress";
 import { runReaderAction } from "@/lib/reader/runReaderAction";
 import { ProgressSaver } from "@/lib/reader/progressSaver";
 import { useUnsavedChanges } from "@/components/useUnsavedChanges";
+import type { ProgressUpdate } from "@/lib/db/progressRow";
 
-export function useProgressSave(paperId: string) {
+export function useProgressSave(paperId: string, onAcknowledged?: (update: ProgressUpdate) => void) {
   // ReaderView keys readers by paperId, giving each paper its own queue.
   const [saver] = useState(() => new ProgressSaver((update) =>
     runReaderAction(() => saveProgress(paperId, update)),
+    onAcknowledged,
   ));
   const state = useSyncExternalStore(saver.subscribe, saver.getSnapshot, saver.getSnapshot);
-  useUnsavedChanges(state.status === "error" || (Boolean(state.explicit) &&
-    (state.status === "pending" || state.status === "saving")));
+  const explicitUnsaved = Boolean(state.explicit) &&
+    (state.status === "pending" || state.status === "saving" || state.status === "error");
+  useUnsavedChanges(state.status === "error" || explicitUnsaved);
   useEffect(() => {
     const flush = () => { if (document.visibilityState === "hidden") void saver.flush(); };
     document.addEventListener("visibilitychange", flush);
@@ -24,5 +27,5 @@ export function useProgressSave(paperId: string) {
       void saver.flush();
     };
   }, [saver]);
-  return { state, enqueue: saver.enqueue, retry: saver.retry };
+  return { state, explicitUnsaved, enqueue: saver.enqueue, retry: saver.retry };
 }

@@ -29,8 +29,6 @@ type Pending = {
   quote: string;
 };
 type Editing = { id: string; x: number; y: number };
-const selectionKey = (selection: Pick<Pending, "blockAnchor" | "start" | "end" | "quote">) =>
-  `${selection.blockAnchor}\0${selection.start}\0${selection.end}\0${selection.quote}`;
 
 export function HighlightLayer({
   paperId,
@@ -46,12 +44,10 @@ export function HighlightLayer({
   const [editing, setEditing] = useState<Editing | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const draftRef = useRef("");
-  // Keep uncertain creation IDs across Cancel and reselection in this reader.
-  const failedCreations = useRef(new Map<string, Pending>());
   const busy = useRef(false);
   const locked = useRef(false);
   const [saveState, setSaveState] = useState<SaveState>({ status: "idle" });
-  const [lastOperation, setLastOperation] = useState<"create" | "note" | "delete">("create");
+  const [lastOperation, setLastOperation] = useState<"create" | "note" | "delete" | "discard">("create");
   const saving = saveState.status === "saving";
   useEffect(() => {
     if (saveState.status !== "saved") return;
@@ -142,29 +138,12 @@ export function HighlightLayer({
         typeof range.getBoundingClientRect === "function"
           ? range.getBoundingClientRect()
           : { left: 0, top: 0, width: 0 };
-      const selection = {
-        blockAnchor: block.getAttribute("data-blk") ?? "",
-        start: offsets.start, end: offsets.end, quote: offsets.quote,
-      };
-      const key = selectionKey(selection);
-      const unresolved = [...failedCreations.current.values()].find((earlier) =>
-        earlier.blockAnchor === selection.blockAnchor && earlier.start < selection.end && selection.start < earlier.end &&
-        selectionKey(earlier) !== key);
-      if (unresolved) {
-        // A lost acknowledgement may mean this range already exists in storage.
-        // Retry that stable ID before another overlapping range is accepted.
-        setPending({ ...unresolved, x: rect.left + rect.width / 2, y: rect.top });
-        setLastOperation("create");
-        setSaveState({ status: "error", error: { ok: false, code: "storage",
-          message: "An earlier highlight here may have saved. Retry it before selecting an overlapping passage." } });
-        return;
-      }
       setSaveState({ status: "idle" });
       setPending({
-        requestId: failedCreations.current.get(key)?.requestId ?? newHighlightId(),
+        requestId: newHighlightId(),
         x: rect.left + rect.width / 2,
         y: rect.top,
-        blockAnchor: selection.blockAnchor,
+        blockAnchor: block.getAttribute("data-blk") ?? "",
         start: offsets.start,
         end: offsets.end,
         quote: offsets.quote,
@@ -174,8 +153,27 @@ export function HighlightLayer({
     return () => document.removeEventListener("mouseup", onMouseUp);
   }, [containerRef]);
 
-  function cancel() {
+  async function cancel() {
     if (busy.current) return;
+    if (pending && saveState.status === "error" &&
+        (saveState.error.code === "storage" || saveState.error.code === "auth")) {
+      // The insert may have committed despite its lost response. Cancel means
+      // discard that stable ID, including any row already written by it.
+      busy.current = true;
+      locked.current = true;
+      setLastOperation("discard");
+      setSaveState({ status: "saving" });
+      try {
+        const result = await runReaderAction(() => deleteHighlight(pending.requestId));
+        if (!result.ok) {
+          setSaveState({ status: "error", error: { ...result,
+            message: "Couldn’t discard this uncertain highlight. Retry Cancel when connected." } });
+          return;
+        }
+      } finally {
+        busy.current = false;
+      }
+    }
     if (editing && saveState.status === "error" && saveState.error.code === "not_found") {
       setHighlights((hs) => hs.filter((h) => h.id !== editing.id));
     }
@@ -192,7 +190,6 @@ export function HighlightLayer({
     locked.current = true;
     setLastOperation("create");
     setSaveState({ status: "saving" });
-    const key = selectionKey(pending);
     try {
       const result = await runReaderAction(() => createHighlight({
         paperId,
@@ -203,12 +200,9 @@ export function HighlightLayer({
         note: null,
       }, pending.requestId));
       if (!result.ok) {
-        if (result.code === "storage" || result.code === "auth") failedCreations.current.set(key, pending);
-        else failedCreations.current.delete(key);
         setSaveState({ status: "error", error: result });
         return;
       }
-      failedCreations.current.delete(key);
       setHighlights((hs) => [...hs.filter((h) => h.id !== result.data.id), result.data]);
       setPending(null);
       locked.current = false;
@@ -268,7 +262,7 @@ export function HighlightLayer({
   }
 
   function retry() {
-    void (lastOperation === "create" ? confirmHighlight() :
+    void (lastOperation === "discard" ? cancel() : lastOperation === "create" ? confirmHighlight() :
       lastOperation === "delete" ? removeHighlight() : saveNote());
   }
 

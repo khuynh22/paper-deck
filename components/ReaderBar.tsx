@@ -11,6 +11,7 @@ import { ReaderProgressBar } from "@/components/ReaderProgressBar";
 export function ReaderBar({
   marked,
   markPending,
+  clearPending,
   onMark,
   onClear,
   progressPct,
@@ -19,6 +20,7 @@ export function ReaderBar({
 }: {
   marked: boolean;
   markPending: boolean;
+  clearPending: boolean;
   onMark: () => void;
   onClear: () => void;
   progressPct: number;
@@ -51,6 +53,7 @@ export function ReaderBar({
               Clear mark{markPending ? " (unsaved)" : ""}
             </button>
           )}
+          {clearPending && <span className="text-xs text-muted-foreground">Clear mark (unsaved)</span>}
           <button
             type="button"
             onClick={onMark}

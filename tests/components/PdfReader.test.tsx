@@ -2,11 +2,17 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-const { saveProgress } = vi.hoisted(() => ({ saveProgress: vi.fn() }));
+const { saveProgress, pdf } = vi.hoisted(() => ({
+  saveProgress: vi.fn(),
+  pdf: { onLoadSuccess: null as null | ((value: { numPages: number }) => void) },
+}));
 vi.mock("@/app/actions/progress", () => ({ saveProgress }));
 vi.mock("react-pdf", () => ({
   pdfjs: { version: "test", GlobalWorkerOptions: {} },
-  Document: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Document: ({ children, onLoadSuccess }: { children: ReactNode; onLoadSuccess: (value: { numPages: number }) => void }) => {
+    pdf.onLoadSuccess = onLoadSuccess;
+    return <div>{children}</div>;
+  },
   Page: () => <div>PDF page</div>,
 }));
 import { PdfReader } from "@/components/PdfReader";
@@ -64,4 +70,49 @@ test("PDF scroll computes the current page at most once per 250 ms", () => {
     fireEvent.scroll(window);
     expect(geometry).toHaveBeenCalledTimes(3);
   } finally { now.mockRestore(); }
+});
+
+test("a fast final PDF scroll saves its trailing page", async () => {
+  vi.useFakeTimers();
+  try {
+    const { container } = render(<PdfReader paperId="p1" initialProgress={null} />);
+    act(() => pdf.onLoadSuccess?.({ numPages: 3 }));
+    const pages = [...container.querySelectorAll<HTMLElement>("[data-page]")];
+    let top = 1;
+    pages.forEach((page, index) => {
+      page.getBoundingClientRect = () => ({ top: index + 1 <= top ? -100 : 100 }) as DOMRect;
+    });
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    top = 3;
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(750));
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ blockAnchor: "3" });
+  } finally { vi.useRealTimers(); }
+});
+
+test("PDF navigation before trailing measurement saves percentage without a stale page", async () => {
+  vi.useFakeTimers();
+  try {
+    const { unmount } = render(<PdfReader paperId="p1" initialProgress={null} />);
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    fireEvent.scroll(window);
+    await act(async () => unmount());
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ blockAnchor: null, readerKind: "pdf" });
+  } finally { vi.useRealTimers(); }
+});
+
+test("failed PDF Clear shows the previous pages as an unsaved removal", async () => {
+  saveProgress.mockResolvedValueOnce({ ok: false, code: "storage", message: "Couldn’t save. Please retry." });
+  const { container } = render(<PdfReader paperId="p1" initialProgress={{
+    scrollPct: 0, blockAnchor: "1", markedAnchor: "2", readerKind: "pdf",
+    status: "reading", readPct: 0, markedPct: 0,
+  }} />);
+  act(() => pdf.onLoadSuccess?.({ numPages: 3 }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^clear mark$/i })));
+  expect(container.querySelector('[data-page="1"]')).toHaveTextContent("clear unsaved");
+  expect(screen.getByText(/clear mark \(unsaved\)/i)).toBeInTheDocument();
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^retry$/i })));
+  expect(container.querySelector('[data-page="1"]')).not.toHaveTextContent("clear unsaved");
 });

@@ -89,3 +89,14 @@ test("a mark still shows Saved when a later scroll is queued during its write", 
   finishes[1](OK);
   await vi.waitFor(() => expect(saver.getSnapshot()).toMatchObject({ status: "saved", explicit: true }));
 });
+
+test("acknowledgements report a successful mark even when a later clear fails", async () => {
+  const acknowledgements: ProgressUpdate[] = [];
+  const write = vi.fn<(_u: ProgressUpdate) => Promise<MutationResult>>()
+    .mockResolvedValueOnce(OK).mockResolvedValueOnce(FAILURE);
+  const saver = new ProgressSaver(write, update => acknowledgements.push(update));
+  saver.enqueue({ markedPct: 0.5 }, true);
+  saver.enqueue({ markedPct: 0 }, true);
+  await vi.waitFor(() => expect(saver.getSnapshot().status).toBe("error"));
+  expect(acknowledgements).toEqual([{ markedPct: 0.5 }]);
+});

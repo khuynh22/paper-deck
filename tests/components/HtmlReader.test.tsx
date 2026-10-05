@@ -128,10 +128,10 @@ test("marking at the bottom persists status done", () => {
   expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ markedPct: 1, status: "done" });
 });
 
-test("'Clear mark' removes the band and persists an unmarked, reading state", () => {
+test("'Clear mark' removes the band after persisting an unmarked, reading state", async () => {
   const { container } = renderReader(PROGRESS({ scrollPct: 0.5, status: "done", readPct: 0.9, markedPct: 0.9 }));
   expect(band(container)).not.toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: /clear mark/i }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /clear mark/i })));
   expect(band(container)).toBeNull();
   expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ markedPct: 0, status: "reading" });
 });
@@ -245,4 +245,59 @@ test("progress status region stays mounted while its text changes", async () => 
   await act(async () => finish({ ok: true, data: undefined }));
   expect(screen.getByRole("status", { name: "Reading progress save" })).toBe(status);
   expect(status).toHaveTextContent("Saved");
+});
+
+test("a fast final scroll saves its trailing block anchor", async () => {
+  vi.useFakeTimers();
+  try {
+    const { container } = renderReader(null);
+    const blocks = [...container.querySelectorAll<HTMLElement>("[data-blk]")];
+    let top = 0;
+    blocks.forEach((block, index) => {
+      block.getBoundingClientRect = () => ({ top: index <= top ? -100 : 100 }) as DOMRect;
+    });
+    setGeometry(100, 200, 1000);
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    top = 2;
+    setGeometry(500, 200, 1000);
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(750));
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ blockAnchor: "2", scrollPct: 0.625 });
+  } finally { vi.useRealTimers(); }
+});
+
+test("navigation before the trailing measurement falls back to the latest scroll percentage", async () => {
+  vi.useFakeTimers();
+  try {
+    const { unmount } = renderReader(null);
+    setGeometry(100, 200, 1000);
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    setGeometry(500, 200, 1000);
+    fireEvent.scroll(window);
+    await act(async () => unmount());
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ blockAnchor: null, scrollPct: 0.625 });
+  } finally { vi.useRealTimers(); }
+});
+
+test("failed Clear keeps the previous boundary as an unsaved removal preview", async () => {
+  saveProgress.mockResolvedValueOnce({ ok: false, code: "storage", message: "Couldn’t save. Please retry." });
+  const { container } = renderReader(PROGRESS({ markedPct: 0.5, status: "reading" }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /clear mark/i })));
+  expect(band(container)).toHaveAttribute("data-save-state", "pending-clear");
+  expect(band(container)?.style.height).toBe("50%");
+  expect(screen.getByText(/clear mark \(unsaved\)/i)).toBeInTheDocument();
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^retry$/i })));
+  expect(band(container)).toBeNull();
+});
+
+test("a saved mark remains identifiable when a later Clear fails", async () => {
+  const { container } = renderReader(null);
+  stubContentGeometry(container, 200, -300, 1000);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /i finished here/i })));
+  expect(band(container)).toHaveAttribute("data-save-state", "saved");
+  saveProgress.mockResolvedValueOnce({ ok: false, code: "storage", message: "Couldn’t save. Please retry." });
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^clear mark$/i })));
+  expect(band(container)).toHaveAttribute("data-save-state", "pending-clear");
 });

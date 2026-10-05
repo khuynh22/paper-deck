@@ -10,8 +10,12 @@ failures explain what needs to change. Database details are not exposed.
 
 - HTML and PDF progress use a per-mounted-reader queue. Scroll snapshots are
   captured immediately and debounced for 600 ms. Block/page geometry is
-  measured at most once per 250 ms during scroll. Mark/clear requests flush
-  immediately. Only one write is in flight; later partial updates are merged.
+  measured at most once per 250 ms during scroll, then once more at the end of
+  that window to capture the final anchor/page. While the final measurement is
+  pending, the saved snapshot uses the current scroll percentage with a null
+  anchor, so early navigation cannot resume at a stale block/page. Mark/clear
+  requests flush immediately. Only one write is in flight; later partial updates
+  are merged.
 - If a write fails, its fields are merged back under newer pending fields. For
   example, a later clear beats an earlier failed mark, while a scroll-only update
   retains a failed mark. Background autosaves pause until explicit Retry or a new Mark/Clear; scrolling updates
@@ -19,6 +23,8 @@ failures explain what needs to change. Database details are not exposed.
 - The local mark remains a visibly dashed, faded preview while its explicit save
   is pending or failed. PDF page badges say "unsaved" rather than "read". The
   normal tint and badge appear only after the server acknowledges the mark.
+  A pending or failed Clear shows the previously saved boundary with a faded
+  outline and "Clear mark (unsaved)" until the clear is acknowledged.
   A mounted status region announces Saving/Saved to screen readers.
   Scroll-only saves stay quiet unless they fail. Mark/Clear shows Saving and
   briefly shows Saved only when the latest queued snapshot is acknowledged.
@@ -30,11 +36,11 @@ failures explain what needs to change. Database details are not exposed.
 - Each highlight selection gets one UUID, retained through all creation retries.
   The server inserts that UUID and, on a duplicate, reads only the current user's
   matching highlight. It never upserts over a note edited after the first insert.
-  This also handles a committed insert whose acknowledgement was lost. The
-  same ID is retained if a failed creation is cancelled and its passage is
-  reselected while the reader stays mounted. An overlapping but different
-  selection is held until the uncertain original is retried, preventing nested
-  marks after a lost response. IDs use Web Crypto random bytes,
+  This also handles a committed insert whose acknowledgement was lost. Retry
+  uses the same ID. Cancel deletes that ID (including a committed row) before
+  the selection is dismissed, so a later different overlapping selection is
+  possible without creating nested marks. If deletion fails, the controls and
+  Retry remain visible. IDs use Web Crypto random bytes,
   which are available on plain HTTP LAN origins.
 
 ## Navigation and lifecycle
@@ -70,6 +76,14 @@ persistent CI browser harness is tracked separately in issue #48.
 
 ### Local browser evidence (2026-10-05)
 
+Run `npm run dev` against local Supabase, then `npm run verify:reader-saves`
+in another shell. The script lives at
+[`scripts/verify-reader-saves.mjs`](../scripts/verify-reader-saves.mjs),
+requires a local `.env.local` with the app's Supabase service-role key, and
+creates then removes a temporary user and paper. Install Chromium with
+`npx playwright install chromium` if needed, or set `READER_SAVE_CHROMIUM`
+to an installed Chromium executable.
+
 The development app was exercised in Chromium against local Supabase with a
 temporary authenticated user and HTML paper. Network responses were deliberately
 dropped for the marked boundary, highlight creation, note update, and deletion.
@@ -80,11 +94,12 @@ PASS: ordinary scroll does not prompt on navigation
 PASS: failed mark is visibly unsaved until retry is acknowledged
 PASS: acknowledged HTML progress persisted in local Supabase
 PASS: lost creation response + retry leaves exactly one highlight
+PASS: Cancel removes an uncertain creation and frees overlapping selection
 PASS: note failure retains draft; retry persists it
 PASS: reload and a second mobile browser context restore mark and note
 PASS: failed deletion retains highlight until retry succeeds
 PASS: no uncaught browser errors
 ```
 
-The browser check is local evidence for issue #45; the automated cross-context
-harness remains tracked in #48.
+The browser check is reproducible local evidence for issue #45; running it in CI
+remains tracked in #48.
