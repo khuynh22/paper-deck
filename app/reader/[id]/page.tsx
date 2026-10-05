@@ -8,7 +8,20 @@ import { currentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReaderPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReaderPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ highlight?: string | string[] }>;
+}) {
+  const { highlight } = await searchParams;
+  const requestedHighlightId =
+    typeof highlight === "string"
+      ? highlight
+      : highlight
+        ? "invalid"
+        : undefined;
   const { id } = await params;
 
   let user = null;
@@ -17,7 +30,10 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
   } catch {
     // not configured
   }
-  if (!user) redirect(`/login?next=/reader/${id}`);
+  if (!user) {
+    const next = `/reader/${id}${requestedHighlightId ? `?highlight=${encodeURIComponent(requestedHighlightId)}` : ""}`;
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
 
   const paper = await getPaper(id);
   if (!paper) notFound();
@@ -41,7 +57,12 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
           </h1>
         </div>
       </div>
-      <ReaderView paperId={id} initialProgress={progress} initialHighlights={highlights} />
+      <ReaderView
+        paperId={id}
+        initialProgress={progress}
+        initialHighlights={highlights}
+        requestedHighlightId={requestedHighlightId}
+      />
     </div>
   );
 }

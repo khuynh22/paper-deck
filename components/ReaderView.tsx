@@ -2,19 +2,28 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { HighlightFallback } from "@/components/HighlightFallback";
 import { HtmlReader } from "@/components/HtmlReader";
 import { LinkButton } from "@/components/ui";
 import type { ProgressRow, Highlight } from "@/lib/types";
 
-const PdfReader = dynamic(() => import("@/components/PdfReader").then((m) => m.PdfReader), {
-  ssr: false,
-  loading: () => <ReaderSkeleton />,
-});
+const PdfReader = dynamic(
+  () => import("@/components/PdfReader").then((m) => m.PdfReader),
+  {
+    ssr: false,
+    loading: () => <ReaderSkeleton />,
+  },
+);
 
 type Payload =
   | { kind: "html"; html: string; pdfUrl: string | null; title: string }
   | { kind: "pdf"; pdfUrl: string; title: string }
-  | { kind: "none"; sourceUrl: string | null; pdfUrl: string | null; title: string }
+  | {
+      kind: "none";
+      sourceUrl: string | null;
+      pdfUrl: string | null;
+      title: string;
+    }
   | { error: string };
 
 function ReaderSkeleton() {
@@ -34,10 +43,12 @@ export function ReaderView({
   paperId,
   initialProgress,
   initialHighlights,
+  requestedHighlightId,
 }: {
   paperId: string;
   initialProgress: ProgressRow | null;
   initialHighlights: Highlight[];
+  requestedHighlightId?: string;
 }) {
   const [payload, setPayload] = useState<Payload | null>(null);
 
@@ -58,8 +69,21 @@ export function ReaderView({
 
   if (!payload) return <ReaderSkeleton />;
 
+  const fallback = requestedHighlightId ? (
+    <HighlightFallback
+      highlight={initialHighlights.find((h) => h.id === requestedHighlightId)}
+    />
+  ) : null;
+
   if ("error" in payload) {
-    return <p className="px-4 py-20 text-center text-sm text-muted-foreground">{payload.error}</p>;
+    return (
+      <>
+        {fallback}
+        <p className="px-4 py-20 text-center text-sm text-muted-foreground">
+          {payload.error}
+        </p>
+      </>
+    );
   }
 
   if (payload.kind === "html") {
@@ -70,24 +94,42 @@ export function ReaderView({
         html={payload.html}
         initialProgress={initialProgress}
         initialHighlights={initialHighlights}
+        requestedHighlightId={requestedHighlightId}
       />
     );
   }
 
   if (payload.kind === "pdf") {
-    return <PdfReader key={paperId} paperId={paperId} initialProgress={initialProgress} />;
+    return (
+      <>
+        {fallback}
+        <PdfReader
+          key={paperId}
+          paperId={paperId}
+          initialProgress={requestedHighlightId ? null : initialProgress}
+        />
+      </>
+    );
   }
 
   // kind === "none" — no in-app rendering available.
   const target = payload.sourceUrl ?? payload.pdfUrl;
   return (
     <div className="mx-auto max-w-md px-4 py-20 text-center">
-      <p className="font-serif text-xl font-medium">No in-app version available</p>
+      {fallback}
+      <p className="font-serif text-xl font-medium">
+        No in-app version available
+      </p>
       <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
         This paper doesn’t have an HTML or PDF we can render in the reader.
       </p>
       {target && (
-        <LinkButton href={target} target="_blank" rel="noreferrer" className="mt-6">
+        <LinkButton
+          href={target}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-6"
+        >
           Open on arXiv
         </LinkButton>
       )}

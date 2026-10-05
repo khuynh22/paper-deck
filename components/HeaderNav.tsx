@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const ITEMS = [
   { label: "Feed", href: "/" },
   { label: "Library", href: "/library" },
+  { label: "My Notes", href: "/notes" },
 ];
 
 export function HeaderNav() {
@@ -22,7 +23,9 @@ export function HeaderNav() {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={`rounded-full px-3 py-1.5 text-sm transition-colors hover:bg-tint ${
-              active ? "font-semibold text-ink" : "font-normal text-muted-foreground"
+              active
+                ? "font-semibold text-ink"
+                : "font-normal text-muted-foreground"
             }`}
           >
             {item.label}
