@@ -54,3 +54,11 @@ yarn-error.log*
 # not for upstream. (Design specs under docs/superpowers/specs/ remain tracked.)
 docs/superpowers/plans/
 .superpowers/
+
+# Isolated browser test runtime and generated migration copies.
+.e2e/
+test-results/
+playwright-report/
+tests/e2e/supabase/migrations/
+tests/e2e/supabase/.temp/
+tests/e2e/supabase/.branches/

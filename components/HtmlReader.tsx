@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { saveProgress } from "@/app/actions/progress";
+import { useProgressSave } from "@/components/useProgressSave";
 import { resolveResumeTarget } from "@/lib/reader/anchor";
 import { readDepthFraction, readBoundaryFraction, isComplete } from "@/lib/reader/readDepth";
 import { ReaderBar } from "@/components/ReaderBar";
@@ -29,10 +29,9 @@ export function HtmlReader({
   const [markedPct, setMarkedPct] = useState(clamp01(initialProgress?.markedPct ?? 0));
   // Current scroll position (viewport top) — drives the ReaderBar progress chrome.
   const [progressPct, setProgressPct] = useState(clamp01(initialProgress?.scrollPct ?? 0));
-  const [hint, setHint] = useState<string | null>(null);
+  const { state: saveState, enqueue, retry } = useProgressSave(paperId);
   // Viewport-bottom fraction, written on scroll so the shelf "% read" is unchanged.
   const readPctRef = useRef(clamp01(initialProgress?.readPct ?? 0));
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** All block anchors, for validating the saved resume target. */
   const orderedAnchors = useCallback((): string[] => {
@@ -64,16 +63,16 @@ export function HtmlReader({
 
   /** Persist resume position; the buttons pass markedPct/status via `extra`. */
   const persist = useCallback(
-    (extra: Partial<{ markedPct: number; status: "reading" | "done" }> = {}) => {
-      saveProgress(paperId, {
+    (extra: Partial<{ markedPct: number; status: "reading" | "done" }> = {}, immediate = true) => {
+      enqueue({
         scrollPct: currentScrollPct(),
         blockAnchor: topBlock(),
         readPct: readPctRef.current,
         readerKind: "html",
         ...extra,
-      }).catch(() => {});
+      }, immediate);
     },
-    [paperId, currentScrollPct, topBlock],
+    [enqueue, currentScrollPct, topBlock],
   );
 
   // Resume to the saved position once the HTML mounts.
@@ -88,7 +87,8 @@ export function HtmlReader({
         const node = containerRef.current?.querySelector<HTMLElement>(
           `[data-blk="${target.value}"]`,
         );
-        if (node) window.scrollTo({ top: node.offsetTop - HEADER_OFFSET });
+        // offsetTop is relative to the positioned paper container, not the page.
+        if (node) window.scrollTo({ top: node.getBoundingClientRect().top + window.scrollY - HEADER_OFFSET });
       } else {
         const max = document.documentElement.scrollHeight - window.innerHeight;
         window.scrollTo({ top: target.value * Math.max(0, max) });
@@ -106,13 +106,11 @@ export function HtmlReader({
         window.innerHeight,
         document.documentElement.scrollHeight,
       );
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => persist(), 600);
+      persist({}, false);
     }
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, [currentScrollPct, persist]);
 
@@ -126,8 +124,6 @@ export function HtmlReader({
     );
     setMarkedPct(frac);
     persist({ markedPct: frac, status: isComplete(frac) ? "done" : "reading" });
-    setHint("Marked ✓");
-    setTimeout(() => setHint(null), 1500);
   }
 
   function onClear() {
@@ -167,7 +163,8 @@ export function HtmlReader({
         onMark={onMark}
         onClear={onClear}
         progressPct={progressPct}
-        hint={hint}
+        saveState={saveState}
+        onRetry={retry}
       />
     </>
   );

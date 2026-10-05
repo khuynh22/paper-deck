@@ -11,6 +11,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  browser:
+    name: Browser persistence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Start isolated database and apply all migrations
+        run: pnpm test:e2e:setup
+      - name: Desktop and mobile persistence
+        run: pnpm test:e2e
+      - name: Failure traces and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-failures
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
   checks:
     name: Lint, typecheck, test
     runs-on: ubuntu-latest

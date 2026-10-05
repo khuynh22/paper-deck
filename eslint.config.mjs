@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local dev scratch (git-ignored, see .gitignore)
     ".preview/**",
+    ".e2e/**",
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 

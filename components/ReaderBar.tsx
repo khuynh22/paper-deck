@@ -1,5 +1,7 @@
 "use client";
 
+import { SaveStatus } from "@/components/SaveStatus";
+import type { SaveState } from "@/lib/reader/progressSaver";
 import { ReaderProgressBar } from "@/components/ReaderProgressBar";
 
 /**
@@ -11,13 +13,15 @@ export function ReaderBar({
   onMark,
   onClear,
   progressPct,
-  hint,
+  saveState,
+  onRetry,
 }: {
   marked: boolean;
   onMark: () => void;
   onClear: () => void;
   progressPct: number;
-  hint?: string | null;
+  saveState: SaveState;
+  onRetry: () => void;
 }) {
   const pct = Math.round(Math.min(1, Math.max(0, progressPct)) * 100);
 
@@ -25,10 +29,15 @@ export function ReaderBar({
     <>
       <ReaderProgressBar pct={progressPct} />
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center bg-gradient-to-t from-background via-background/60 to-transparent px-3.5 pb-[calc(16px+env(safe-area-inset-bottom))] pt-10">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex flex-col items-center justify-center bg-gradient-to-t from-background via-background/60 to-transparent px-3.5 pb-[calc(16px+env(safe-area-inset-bottom))] pt-10">
+        {saveState.status !== "idle" && (
+          <div className="pointer-events-auto mb-2 max-w-lg rounded-xl bg-card px-3 py-1.5">
+            <SaveStatus state={saveState} onRetry={onRetry} />
+          </div>
+        )}
         <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-line bg-card py-[5px] pl-4 pr-1.5 shadow-[0_12px_32px_var(--shadow)]">
           <span className="mr-1.5 font-mono text-[11.5px] text-muted-foreground">{pct}%</span>
-          {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+
           {marked && (
             <button
               type="button"

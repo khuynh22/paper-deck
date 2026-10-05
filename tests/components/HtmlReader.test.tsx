@@ -2,7 +2,7 @@ import { test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 
 const { saveProgress } = vi.hoisted(() => ({
-  saveProgress: vi.fn(async (_paperId: string, _update: Record<string, unknown>) => {}),
+  saveProgress: vi.fn<(...args: [string, Record<string, unknown>]) => Promise<unknown>>(),
 }));
 vi.mock("@/app/actions/progress", () => ({ saveProgress }));
 
@@ -19,7 +19,8 @@ import type { ProgressRow } from "@/lib/types";
 const HTML = `<p data-blk="0">Alpha</p><p data-blk="1">Beta</p><p data-blk="2">Gamma</p>`;
 
 beforeEach(() => {
-  saveProgress.mockClear();
+  saveProgress.mockReset();
+  saveProgress.mockResolvedValue({ ok: true, data: undefined });
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
 });
 
@@ -151,4 +152,46 @@ test("a debounced scroll save does not change the mark or status", () => {
   } finally {
     vi.useRealTimers();
   }
+});
+
+test("failed marking shows retry, never Marked, and retries the retained boundary", async () => {
+  saveProgress.mockResolvedValueOnce({ ok: false, code: "storage", message: "Couldn’t save. Please retry." });
+  saveProgress.mockResolvedValueOnce({ ok: true, data: undefined });
+  const { container } = renderReader(null);
+  stubContentGeometry(container, 200, -300, 1000);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /i finished here/i })));
+  expect(screen.queryByText(/marked ✓/i)).not.toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent(/couldn’t save/i);
+  // The viewport changes while offline: retry must preserve the button's intent.
+  stubContentGeometry(container, 200, -800, 1000);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^retry$/i })));
+  expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ markedPct: 0.5 });
+  expect(screen.getByRole("status")).toHaveTextContent(/saved/i);
+});
+
+test("a slow mark then clear is serialized and the older response never reports Saved", async () => {
+  let finish!: (value: unknown) => void;
+  saveProgress.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  let finishClear!: (value: unknown) => void;
+  saveProgress.mockImplementationOnce(() => new Promise((resolve) => { finishClear = resolve; }));
+  const { container } = renderReader(null);
+  stubContentGeometry(container, 200, -300, 1000);
+  fireEvent.click(screen.getByRole("button", { name: /i finished here/i }));
+  fireEvent.click(screen.getByRole("button", { name: /clear mark/i }));
+  expect(saveProgress).toHaveBeenCalledTimes(1);
+  await act(async () => finish({ ok: true, data: undefined }));
+  expect(saveProgress).toHaveBeenCalledTimes(2);
+  expect(saveProgress.mock.calls[1][1]).toMatchObject({ markedPct: 0, status: "reading" });
+  expect(screen.getByRole("status")).toHaveTextContent(/saving/i);
+  await act(async () => finishClear({ ok: true, data: undefined }));
+  expect(screen.getByRole("status")).toHaveTextContent(/saved/i);
+  expect(band(container)).toBeNull();
+});
+
+test("unmount flushes the latest scroll snapshot instead of cancelling the debounce", async () => {
+  const { unmount } = renderReader(null);
+  setGeometry(300, 200, 1000);
+  fireEvent.scroll(window);
+  await act(async () => unmount());
+  expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ scrollPct: 0.375 });
 });
