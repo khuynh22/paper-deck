@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { createHighlight, deleteHighlight, updateHighlightNote } from "@/app/actions/highlights";
+import {
+  createHighlight,
+  deleteHighlight,
+  updateHighlightNote,
+} from "@/app/actions/highlights";
 import {
   offsetsFromSelection,
   decorateBlock,
@@ -16,6 +20,7 @@ import { useUnsavedChanges } from "@/components/useUnsavedChanges";
 import { mutationFailure } from "@/lib/mutationResult";
 import type { SaveState } from "@/lib/reader/progressSaver";
 import { NOTE_MAX } from "@/lib/db/highlightRow";
+import { HighlightFallback } from "@/components/HighlightFallback";
 import { Button } from "@/components/ui";
 import type { Highlight } from "@/lib/types";
 
@@ -34,12 +39,16 @@ export function HighlightLayer({
   paperId,
   containerRef,
   initialHighlights,
+  requestedHighlightId,
 }: {
   paperId: string;
   containerRef: RefObject<HTMLDivElement | null>;
   initialHighlights: Highlight[];
+  requestedHighlightId?: string;
 }) {
   const [highlights, setHighlights] = useState<Highlight[]>(initialHighlights);
+  const located = useRef<string | null>(null);
+  const [missingTarget, setMissingTarget] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
@@ -47,10 +56,18 @@ export function HighlightLayer({
   const busy = useRef(false);
   const locked = useRef(false);
   const [saveState, setSaveState] = useState<SaveState>({ status: "idle" });
-  const [lastOperation, setLastOperation] = useState<"create" | "note" | "delete">("create");
+  const [lastOperation, setLastOperation] = useState<
+    "create" | "note" | "delete"
+  >("create");
   const saving = saveState.status === "saving";
-  useUnsavedChanges(saving || saveState.status === "error" || Boolean(editing &&
-    noteDraft !== (highlights.find((h) => h.id === editing.id)?.note ?? "")));
+  useUnsavedChanges(
+    saving ||
+      saveState.status === "error" ||
+      Boolean(
+        editing &&
+        noteDraft !== (highlights.find((h) => h.id === editing.id)?.note ?? ""),
+      ),
+  );
 
   // Keep a ref so click handlers bound into the DOM read current highlights
   // without changing identity (which would thrash the repaint effect).
@@ -66,7 +83,9 @@ export function HighlightLayer({
       setPending(null);
       setSaveState({ status: "idle" });
       const root = containerRef.current;
-      const mark = root?.querySelector<HTMLElement>(`mark.${MARK_CLASS}[data-hl-id="${id}"]`);
+      const mark = root?.querySelector<HTMLElement>(
+        `mark.${MARK_CLASS}[data-hl-id="${id}"]`,
+      );
       const rect = mark?.getBoundingClientRect();
       const h = hlRef.current.find((x) => x.id === id);
       setEditing({ id, x: rect?.left ?? 0, y: rect?.bottom ?? 0 });
@@ -94,17 +113,45 @@ export function HighlightLayer({
       arr.push(target);
       byBlock.set(h.blockAnchor, arr);
     }
+    const blocks = new Map(
+      Array.from(root.querySelectorAll("[data-blk]")).map((block) => [
+        block.getAttribute("data-blk"),
+        block,
+      ]),
+    );
     for (const [blk, targets] of byBlock) {
-      const block = root.querySelector(`[data-blk="${blk}"]`);
+      const block = blocks.get(blk);
       if (block) decorateBlock(block, targets, openEditor);
     }
-    return () => clearHighlights(root);
-  }, [highlights, containerRef, openEditor]);
+    const frame = requestAnimationFrame(() => {
+      if (!requestedHighlightId || located.current === requestedHighlightId)
+        return;
+      located.current = requestedHighlightId;
+      const mark = Array.from(
+        root.querySelectorAll<HTMLElement>(`mark.${MARK_CLASS}`),
+      ).find((node) => node.dataset.hlId === requestedHighlightId);
+      setMissingTarget(!mark);
+      if (mark) {
+        mark.tabIndex = -1;
+        mark.scrollIntoView({ block: "center" });
+        mark.focus({ preventScroll: true });
+      } else window.scrollTo({ top: 0 });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      clearHighlights(root);
+    };
+  }, [highlights, containerRef, openEditor, requestedHighlightId]);
 
   // Show the "Highlight" button when a fresh selection sits inside one block.
   useEffect(() => {
     function onMouseUp(event: MouseEvent) {
-      if (locked.current || (event.target instanceof Element && event.target.closest("[data-highlight-controls]"))) return;
+      if (
+        locked.current ||
+        (event.target instanceof Element &&
+          event.target.closest("[data-highlight-controls]"))
+      )
+        return;
       const root = containerRef.current;
       const sel = window.getSelection();
       if (!root || !sel || sel.isCollapsed || sel.rangeCount === 0) {
@@ -112,7 +159,9 @@ export function HighlightLayer({
         return;
       }
       const range = sel.getRangeAt(0);
-      const block = (range.startContainer.parentElement ?? null)?.closest("[data-blk]");
+      const block = (range.startContainer.parentElement ?? null)?.closest(
+        "[data-blk]",
+      );
       if (!block || !root.contains(block)) {
         setPending(null);
         return;
@@ -163,19 +212,27 @@ export function HighlightLayer({
     setLastOperation("create");
     setSaveState({ status: "saving" });
     try {
-      const result = await runReaderAction(() => createHighlight({
-        paperId,
-        blockAnchor: pending.blockAnchor,
-        startOffset: pending.start,
-        endOffset: pending.end,
-        quote: pending.quote,
-        note: null,
-      }, pending.requestId));
+      const result = await runReaderAction(() =>
+        createHighlight(
+          {
+            paperId,
+            blockAnchor: pending.blockAnchor,
+            startOffset: pending.start,
+            endOffset: pending.end,
+            quote: pending.quote,
+            note: null,
+          },
+          pending.requestId,
+        ),
+      );
       if (!result.ok) {
         setSaveState({ status: "error", error: result });
         return;
       }
-      setHighlights((hs) => [...hs.filter((h) => h.id !== result.data.id), result.data]);
+      setHighlights((hs) => [
+        ...hs.filter((h) => h.id !== result.data.id),
+        result.data,
+      ]);
       setPending(null);
       locked.current = false;
       window.getSelection()?.removeAllRanges();
@@ -195,12 +252,16 @@ export function HighlightLayer({
     const note = submittedDraft.trim() || null;
     setSaveState({ status: "saving" });
     try {
-      const result = await runReaderAction(() => updateHighlightNote(editing.id, note));
+      const result = await runReaderAction(() =>
+        updateHighlightNote(editing.id, note),
+      );
       if (!result.ok) {
         setSaveState({ status: "error", error: result });
         return;
       }
-      setHighlights((hs) => hs.map((h) => h.id === editing.id ? { ...h, note } : h));
+      setHighlights((hs) =>
+        hs.map((h) => (h.id === editing.id ? { ...h, note } : h)),
+      );
       // The textarea stays editable during a slow save. Its newer text must not
       // be discarded or described as saved by this older acknowledgement.
       if (draftRef.current === submittedDraft) {
@@ -240,12 +301,21 @@ export function HighlightLayer({
   }
 
   function retry() {
-    void (lastOperation === "create" ? confirmHighlight() :
-      lastOperation === "delete" ? removeHighlight() : saveNote());
+    void (lastOperation === "create"
+      ? confirmHighlight()
+      : lastOperation === "delete"
+        ? removeHighlight()
+        : saveNote());
   }
 
   return (
     <>
+      {missingTarget && (
+        <HighlightFallback
+          floating
+          highlight={highlights.find((h) => h.id === requestedHighlightId)}
+        />
+      )}
       {!pending && !editing && saveState.status === "saved" && (
         <div className="fixed bottom-36 right-4 z-30 rounded-xl bg-card px-3 py-2 shadow-md">
           <SaveStatus state={saveState} onRetry={retry} />
@@ -267,7 +337,14 @@ export function HighlightLayer({
           </Button>
           <div className="mt-1 max-w-72 rounded-xl bg-card p-2 shadow-md">
             <SaveStatus state={saveState} onRetry={retry} />
-            <button type="button" className="mt-1 text-xs underline" disabled={saving} onClick={cancel}>Cancel</button>
+            <button
+              type="button"
+              className="mt-1 text-xs underline"
+              disabled={saving}
+              onClick={cancel}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -309,7 +386,12 @@ export function HighlightLayer({
               >
                 Cancel
               </Button>
-              <Button variant="primary" className="h-8 px-3 text-xs" disabled={saving} onClick={saveNote}>
+              <Button
+                variant="primary"
+                className="h-8 px-3 text-xs"
+                disabled={saving}
+                onClick={saveNote}
+              >
                 Save
               </Button>
             </div>
