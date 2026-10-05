@@ -42,7 +42,11 @@ test("library, HTML marks and notes survive reload and another session; failed s
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Note", exact: true })).toHaveCount(0);
   await expect.poll(async () => (await admin.from("highlights").select("note").eq("user_id", seed.userId)).data).toEqual([{ note: "Private persistent research note" }]);
+  await page.locator('.paper-html [data-blk="8"]').evaluate(block => window.scrollTo({ top: block.getBoundingClientRect().top + window.scrollY - 72 }));
+  await expect.poll(async () => (await admin.from("reading_progress").select("block_anchor").eq("user_id", seed.userId).single()).data?.block_anchor).toBe("8");
+  await expect(page.getByRole("status").filter({ hasText: /^Saved$/ }).first()).toBeVisible();
   await page.reload();
+  await expect.poll(() => page.locator('.paper-html [data-blk="8"]').evaluate(block => Math.abs(block.getBoundingClientRect().top - 72))).toBeLessThan(2);
   await expect(page.getByTestId("read-mark")).toBeVisible();
   await expect(page.locator("mark.pd-highlight")).toHaveCount(1);
   const second = await browser.newContext({ viewport: page.viewportSize() ?? undefined });
@@ -50,6 +54,7 @@ test("library, HTML marks and notes survive reload and another session; failed s
     await authenticate(second, seed.email, seed.password);
     const other = await second.newPage();
     await other.goto(`http://127.0.0.1:3102/reader/${seed.htmlId}`);
+    await expect.poll(() => other.locator('.paper-html [data-blk="8"]').evaluate(block => Math.abs(block.getBoundingClientRect().top - 72))).toBeLessThan(2);
     await expect(other.getByTestId("read-mark")).toBeVisible();
     await other.locator("mark.pd-highlight").click();
     await expect(other.getByRole("textbox", { name: "Note", exact: true })).toHaveValue("Private persistent research note");

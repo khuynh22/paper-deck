@@ -87,7 +87,8 @@ export function HtmlReader({
         const node = containerRef.current?.querySelector<HTMLElement>(
           `[data-blk="${target.value}"]`,
         );
-        if (node) window.scrollTo({ top: node.offsetTop - HEADER_OFFSET });
+        // offsetTop is relative to the positioned paper container, not the page.
+        if (node) window.scrollTo({ top: node.getBoundingClientRect().top + window.scrollY - HEADER_OFFSET });
       } else {
         const max = document.documentElement.scrollHeight - window.innerHeight;
         window.scrollTo({ top: target.value * Math.max(0, max) });

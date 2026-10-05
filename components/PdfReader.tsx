@@ -92,7 +92,7 @@ export function PdfReader({
           ? containerRef.current?.querySelector<HTMLElement>(`[data-page="${resumePage}"]`)
           : null;
         if (el) {
-          window.scrollTo({ top: el.offsetTop - HEADER_OFFSET });
+          window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - HEADER_OFFSET });
         } else if (initialProgress?.scrollPct) {
           const max = document.documentElement.scrollHeight - window.innerHeight;
           window.scrollTo({ top: initialProgress.scrollPct * Math.max(0, max) });

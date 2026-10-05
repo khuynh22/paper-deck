@@ -32,6 +32,9 @@ Negative-control validation: temporarily disabling `stars` RLS in the disposable
 database made the second-user test fail at its empty-result assertion with the
 first user's row. RLS was restored immediately afterward. Callback tests also
 reproduced and now prevent an external redirect via `next=@evil.test`.
+The HTML journey saves a nonzero block anchor and checks its exact viewport
+position after reload and in a second context. This exposed a parent-relative
+`offsetTop` calculation; both readers now resume using document coordinates.
 
 Known development limitation: the existing webpack dev server throws inside
 pdf.js when opening the PDF fixture. The production bundle passes both PDF cases;
