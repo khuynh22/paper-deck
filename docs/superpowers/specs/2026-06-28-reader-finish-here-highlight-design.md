@@ -1,6 +1,10 @@
 # "Finish here" button → exact read highlight (HTML reader, v2)
 
 **Date:** 2026-06-28
+
+> **Save feedback superseded 2026-10-05:** [Reader save behavior](../../READER-SAVES.md)
+> replaces the immediate "Marked ✓" flash below. A mark is shown as unsaved
+> until the server confirms it.
 **Status:** Approved (design), pending spec review
 **Scope:** HTML reader only. PDF reader unchanged (it keeps its own `ReaderBar` +
 page tint).

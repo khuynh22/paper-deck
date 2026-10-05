@@ -139,5 +139,6 @@ test("a malformed highlight ID does not reach the database", async () => {
 test("an unresolved duplicate highlight is non-retryable", async () => {
   db.result.mockResolvedValueOnce({ data: null, error: { code: "23505" } });
   db.result.mockResolvedValueOnce({ data: null, error: null });
-  expect(await createHighlight(input, ID)).toMatchObject({ ok: false, code: "not_found" });
+  expect(await createHighlight(input, ID)).toMatchObject({ ok: false, code: "not_found",
+    message: expect.not.stringMatching(/note/i) });
 });

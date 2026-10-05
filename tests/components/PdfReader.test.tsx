@@ -22,9 +22,10 @@ test("PDF marker failure is visible and retry persists the original page", async
   expect(screen.getByRole("alert")).toHaveTextContent(/sign in again/i);
   expect(screen.getByRole("link", { name: /sign in in a new tab/i })).toHaveAttribute("target", "_blank");
   expect(screen.queryByText(/marked ✓/i)).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /clear mark/i })).toHaveTextContent(/unsaved/i);
   await act(async () => fireEvent.click(screen.getByRole("button", { name: /^retry$/i })));
   expect(saveProgress).toHaveBeenLastCalledWith("p1", expect.objectContaining({ markedAnchor: "1", readerKind: "pdf" }));
-  expect(screen.getByRole("status")).toHaveTextContent("Saved");
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toHaveTextContent("Saved");
 });
 
 test("PDF clear waits for a slow mark and its acknowledgement is the final state", async () => {
@@ -37,7 +38,7 @@ test("PDF clear waits for a slow mark and its acknowledgement is the final state
   await act(async () => finish({ ok: true, data: undefined }));
   expect(saveProgress).toHaveBeenLastCalledWith("p1", expect.objectContaining({ markedAnchor: null, status: "reading" }));
   expect(screen.queryByRole("button", { name: /clear mark/i })).not.toBeInTheDocument();
-  expect(screen.getByRole("status")).toHaveTextContent("Saved");
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toHaveTextContent("Saved");
 });
 
 test("PDF unmount flushes a debounced scroll snapshot", async () => {
@@ -47,14 +48,20 @@ test("PDF unmount flushes a debounced scroll snapshot", async () => {
   expect(saveProgress).toHaveBeenCalledWith("p1", expect.objectContaining({ readerKind: "pdf" }));
 });
 
-test("PDF scroll computes the current page once per animation frame", () => {
-  const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+test("PDF scroll computes the current page at most once per 250 ms", () => {
+  const now = vi.spyOn(Date, "now");
   try {
     const { container } = render(<PdfReader paperId="p1" initialProgress={null} />);
     const pages = container.querySelector<HTMLElement>("[data-page]")?.parentElement ??
       container.querySelector<HTMLElement>(".mx-auto.flex")!;
     const geometry = vi.spyOn(pages, "querySelectorAll");
-    for (let i = 0; i < 20; i++) fireEvent.scroll(window);
-    expect(geometry).toHaveBeenCalledTimes(1);
-  } finally { frame.mockRestore(); }
+    for (let i = 0; i < 20; i++) {
+      now.mockReturnValue(i * 16);
+      fireEvent.scroll(window);
+    }
+    expect(geometry).toHaveBeenCalledTimes(2);
+    now.mockReturnValue(512);
+    fireEvent.scroll(window);
+    expect(geometry).toHaveBeenCalledTimes(3);
+  } finally { now.mockRestore(); }
 });

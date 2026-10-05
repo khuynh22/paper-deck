@@ -163,7 +163,7 @@ test("a failed note save keeps the editor and draft for retry", async () => {
   expect(screen.getByRole("alert")).toHaveTextContent(/couldn’t save/i);
   await act(async () => fireEvent.click(screen.getByRole("button", { name: /^retry$/i })));
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-  expect(screen.getByRole("status")).toHaveTextContent(/saved/i);
+  expect(screen.getByRole("status", { name: "Highlight save" })).toHaveTextContent(/saved/i);
 });
 
 test("failed deletion retains the mark and editor until a successful retry", async () => {
@@ -225,7 +225,7 @@ test("a slow note save immediately shows Saving and disables duplicate mutations
   fireEvent.click(container.querySelector("mark")!);
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "draft" } });
   fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
-  expect(screen.getByRole("status")).toHaveTextContent("Saving");
+  expect(screen.getByRole("status", { name: "Highlight save" })).toHaveTextContent("Saving");
   expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
   expect(screen.getByRole("button", { name: /^delete$/i })).toBeDisabled();
   await act(async () => finish({ ok: true, data: undefined }));
@@ -236,9 +236,9 @@ test("a new selection does not inherit the previous highlight's Saved message", 
   const { container } = render(<Harness initial={[]} />);
   selectText(container, 10, 16);
   await act(async () => fireEvent.click(screen.getByRole("button", { name: /^highlight$/i })));
-  expect(screen.getByRole("status")).toHaveTextContent("Saved");
+  expect(screen.getByRole("status", { name: "Highlight save" })).toHaveTextContent("Saved");
   selectText(container, 0, 9);
-  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(screen.getByRole("status", { name: "Highlight save" })).toBeEmptyDOMElement();
 });
 
 test("cancelling a lost-response creation retains its UUID for the same selection", async () => {
@@ -262,9 +262,9 @@ test("a successful highlight toast disappears after a short delay", async () => 
     const { container } = render(<Harness initial={[]} />);
     selectText(container, 10, 16);
     await act(async () => fireEvent.click(screen.getByRole("button", { name: /^highlight$/i })));
-    expect(screen.getByRole("status")).toHaveTextContent("Saved");
+    expect(screen.getByRole("status", { name: "Highlight save" })).toHaveTextContent("Saved");
     act(() => vi.advanceTimersByTime(2500));
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Highlight save" })).toBeEmptyDOMElement();
   } finally { vi.useRealTimers(); }
 });
 
@@ -277,4 +277,37 @@ test("a non-retryable note failure keeps the draft but offers Cancel instead of 
   expect(screen.getByRole("textbox")).toHaveValue("copy me");
   expect(screen.queryByRole("button", { name: /^retry$/i })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+  expect(container.querySelector("mark.pd-highlight")).toBeNull();
+});
+
+test("an overlapping reselection retries the unresolved original instead of creating another range", async () => {
+  actions.createHighlight.mockResolvedValueOnce(FAILURE);
+  actions.createHighlight.mockResolvedValueOnce({ ok: true, data: INITIAL });
+  const { container } = render(<Harness initial={[]} />);
+  selectText(container, 10, 16);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^highlight$/i })));
+  const firstId = actions.createHighlight.mock.calls[0][1];
+  fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+  selectText(container, 8, 18);
+  expect(screen.getByRole("alert")).toHaveTextContent(/earlier highlight/i);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^retry$/i })));
+  expect(actions.createHighlight.mock.calls[1][0]).toMatchObject({ startOffset: 10, endOffset: 16 });
+  expect(actions.createHighlight.mock.calls[1][1]).toBe(firstId);
+  expect(container.querySelectorAll("mark")).toHaveLength(1);
+});
+
+test("highlight status region stays mounted through create and success", async () => {
+  let finish!: (value: unknown) => void;
+  actions.createHighlight.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const { container } = render(<Harness initial={[]} />);
+  const status = screen.getByRole("status", { name: "Highlight save" });
+  expect(status).toBeEmptyDOMElement();
+  selectText(container, 10, 16);
+  fireEvent.click(screen.getByRole("button", { name: /^highlight$/i }));
+  expect(screen.getByRole("status", { name: "Highlight save" })).toBe(status);
+  expect(status).toHaveTextContent("Saving");
+  await act(async () => finish({ ok: true, data: INITIAL }));
+  expect(screen.getByRole("status", { name: "Highlight save" })).toBe(status);
+  expect(status).toHaveTextContent("Saved");
 });

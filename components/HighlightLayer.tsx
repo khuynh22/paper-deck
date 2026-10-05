@@ -11,7 +11,7 @@ import {
   type DecorateTarget,
 } from "@/lib/reader/highlightRange";
 import { runReaderAction } from "@/lib/reader/runReaderAction";
-import { SaveStatus } from "@/components/SaveStatus";
+import { SaveStatus, saveStatusText } from "@/components/SaveStatus";
 import { useUnsavedChanges } from "@/components/useUnsavedChanges";
 import { newHighlightId } from "@/lib/reader/highlightId";
 import type { SaveState } from "@/lib/reader/progressSaver";
@@ -29,6 +29,8 @@ type Pending = {
   quote: string;
 };
 type Editing = { id: string; x: number; y: number };
+const selectionKey = (selection: Pick<Pending, "blockAnchor" | "start" | "end" | "quote">) =>
+  `${selection.blockAnchor}\0${selection.start}\0${selection.end}\0${selection.quote}`;
 
 export function HighlightLayer({
   paperId,
@@ -45,7 +47,7 @@ export function HighlightLayer({
   const [noteDraft, setNoteDraft] = useState("");
   const draftRef = useRef("");
   // Keep uncertain creation IDs across Cancel and reselection in this reader.
-  const failedCreationIds = useRef(new Map<string, string>());
+  const failedCreations = useRef(new Map<string, Pending>());
   const busy = useRef(false);
   const locked = useRef(false);
   const [saveState, setSaveState] = useState<SaveState>({ status: "idle" });
@@ -140,12 +142,29 @@ export function HighlightLayer({
         typeof range.getBoundingClientRect === "function"
           ? range.getBoundingClientRect()
           : { left: 0, top: 0, width: 0 };
+      const selection = {
+        blockAnchor: block.getAttribute("data-blk") ?? "",
+        start: offsets.start, end: offsets.end, quote: offsets.quote,
+      };
+      const key = selectionKey(selection);
+      const unresolved = [...failedCreations.current.values()].find((earlier) =>
+        earlier.blockAnchor === selection.blockAnchor && earlier.start < selection.end && selection.start < earlier.end &&
+        selectionKey(earlier) !== key);
+      if (unresolved) {
+        // A lost acknowledgement may mean this range already exists in storage.
+        // Retry that stable ID before another overlapping range is accepted.
+        setPending({ ...unresolved, x: rect.left + rect.width / 2, y: rect.top });
+        setLastOperation("create");
+        setSaveState({ status: "error", error: { ok: false, code: "storage",
+          message: "An earlier highlight here may have saved. Retry it before selecting an overlapping passage." } });
+        return;
+      }
       setSaveState({ status: "idle" });
       setPending({
-        requestId: failedCreationIds.current.get(`${block.getAttribute("data-blk")}\0${offsets.start}\0${offsets.end}\0${offsets.quote}`) ?? newHighlightId(),
+        requestId: failedCreations.current.get(key)?.requestId ?? newHighlightId(),
         x: rect.left + rect.width / 2,
         y: rect.top,
-        blockAnchor: block.getAttribute("data-blk") ?? "",
+        blockAnchor: selection.blockAnchor,
         start: offsets.start,
         end: offsets.end,
         quote: offsets.quote,
@@ -157,6 +176,9 @@ export function HighlightLayer({
 
   function cancel() {
     if (busy.current) return;
+    if (editing && saveState.status === "error" && saveState.error.code === "not_found") {
+      setHighlights((hs) => hs.filter((h) => h.id !== editing.id));
+    }
     locked.current = false;
     setPending(null);
     setEditing(null);
@@ -170,7 +192,7 @@ export function HighlightLayer({
     locked.current = true;
     setLastOperation("create");
     setSaveState({ status: "saving" });
-    const selectionKey = `${pending.blockAnchor}\0${pending.start}\0${pending.end}\0${pending.quote}`;
+    const key = selectionKey(pending);
     try {
       const result = await runReaderAction(() => createHighlight({
         paperId,
@@ -181,11 +203,12 @@ export function HighlightLayer({
         note: null,
       }, pending.requestId));
       if (!result.ok) {
-        failedCreationIds.current.set(selectionKey, pending.requestId);
+        if (result.code === "storage" || result.code === "auth") failedCreations.current.set(key, pending);
+        else failedCreations.current.delete(key);
         setSaveState({ status: "error", error: result });
         return;
       }
-      failedCreationIds.current.delete(selectionKey);
+      failedCreations.current.delete(key);
       setHighlights((hs) => [...hs.filter((h) => h.id !== result.data.id), result.data]);
       setPending(null);
       locked.current = false;
@@ -251,6 +274,7 @@ export function HighlightLayer({
 
   return (
     <>
+      <span role="status" aria-label="Highlight save" className="sr-only">{saveStatusText(saveState)}</span>
       {!pending && !editing && saveState.status === "saved" && (
         <div className="fixed bottom-36 right-4 z-30 rounded-xl bg-card px-3 py-2 shadow-md">
           <SaveStatus state={saveState} onRetry={retry} />

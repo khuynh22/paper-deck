@@ -162,11 +162,13 @@ test("failed marking shows retry, never Marked, and retries the retained boundar
   await act(async () => fireEvent.click(screen.getByRole("button", { name: /i finished here/i })));
   expect(screen.queryByText(/marked ✓/i)).not.toBeInTheDocument();
   expect(screen.getByRole("alert")).toHaveTextContent(/couldn’t save/i);
+  expect(band(container)).toHaveAttribute("data-save-state", "unsaved");
   // The viewport changes while offline: retry must preserve the button's intent.
   stubContentGeometry(container, 200, -800, 1000);
   await act(async () => fireEvent.click(screen.getByRole("button", { name: /^retry$/i })));
   expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ markedPct: 0.5 });
-  expect(screen.getByRole("status")).toHaveTextContent(/saved/i);
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toHaveTextContent(/saved/i);
+  expect(band(container)).toHaveAttribute("data-save-state", "saved");
 });
 
 test("a slow mark then clear is serialized and the older response never reports Saved", async () => {
@@ -182,9 +184,9 @@ test("a slow mark then clear is serialized and the older response never reports 
   await act(async () => finish({ ok: true, data: undefined }));
   expect(saveProgress).toHaveBeenCalledTimes(2);
   expect(saveProgress.mock.calls[1][1]).toMatchObject({ markedPct: 0, status: "reading" });
-  expect(screen.getByRole("status")).toHaveTextContent(/saving/i);
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toHaveTextContent(/saving/i);
   await act(async () => finishClear({ ok: true, data: undefined }));
-  expect(screen.getByRole("status")).toHaveTextContent(/saved/i);
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toHaveTextContent(/saved/i);
   expect(band(container)).toBeNull();
 });
 
@@ -204,7 +206,7 @@ test("routine scroll autosaves stay quiet and do not warn on navigation", () => 
     );
     setGeometry(300, 200, 1000);
     fireEvent.scroll(window);
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Reading progress save" })).toBeEmptyDOMElement();
     const link = container.querySelector("a")!;
     link.addEventListener("click", (event) => event.preventDefault());
     fireEvent.click(link);
@@ -212,14 +214,35 @@ test("routine scroll autosaves stay quiet and do not warn on navigation", () => 
   } finally { confirm.mockRestore(); }
 });
 
-test("scroll position captures block geometry at most once per animation frame", () => {
-  const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+test("scroll position captures block geometry at most once per 250 ms", () => {
+  const now = vi.spyOn(Date, "now");
   try {
     const { container } = renderReader(null);
     const paper = container.querySelector<HTMLElement>(".paper-html")!;
     const geometry = vi.spyOn(paper, "querySelectorAll");
     setGeometry(300, 200, 1000);
-    for (let i = 0; i < 20; i++) fireEvent.scroll(window);
-    expect(geometry).toHaveBeenCalledTimes(1);
-  } finally { frame.mockRestore(); }
+    for (let i = 0; i < 20; i++) {
+      now.mockReturnValue(i * 16);
+      fireEvent.scroll(window);
+    }
+    expect(geometry).toHaveBeenCalledTimes(2);
+    now.mockReturnValue(512);
+    fireEvent.scroll(window);
+    expect(geometry).toHaveBeenCalledTimes(3);
+  } finally { now.mockRestore(); }
+});
+
+test("progress status region stays mounted while its text changes", async () => {
+  let finish!: (value: unknown) => void;
+  saveProgress.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const { container } = renderReader(null);
+  const status = screen.getByRole("status", { name: "Reading progress save" });
+  expect(status).toBeEmptyDOMElement();
+  stubContentGeometry(container, 200, -300, 1000);
+  fireEvent.click(screen.getByRole("button", { name: /i finished here/i }));
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toBe(status);
+  expect(status).toHaveTextContent("Saving");
+  await act(async () => finish({ ok: true, data: undefined }));
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toBe(status);
+  expect(status).toHaveTextContent("Saved");
 });

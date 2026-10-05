@@ -33,7 +33,7 @@ export function HtmlReader({
   // Viewport-bottom fraction, written on scroll so the shelf "% read" is unchanged.
   const readPctRef = useRef(clamp01(initialProgress?.readPct ?? 0));
   const scrollAnchorRef = useRef<string | null>(initialProgress?.blockAnchor ?? null);
-  const frameRef = useRef<number | null>(null);
+  const lastAnchorMeasureRef = useRef(-Infinity);
 
   /** All block anchors, for validating the saved resume target. */
   const orderedAnchors = useCallback((): string[] => {
@@ -65,14 +65,14 @@ export function HtmlReader({
 
   /** Persist resume position; the buttons pass markedPct/status via `extra`. */
   const persist = useCallback(
-    (extra: Partial<{ markedPct: number; status: "reading" | "done" }> = {}, immediate = true) => {
+    (extra: Partial<{ markedPct: number; status: "reading" | "done" }> = {}) => {
       enqueue({
         scrollPct: currentScrollPct(),
         blockAnchor: topBlock(),
         readPct: readPctRef.current,
         readerKind: "html",
         ...extra,
-      }, immediate);
+      }, true);
     },
     [enqueue, currentScrollPct, topBlock],
   );
@@ -108,11 +108,12 @@ export function HtmlReader({
         window.innerHeight,
         document.documentElement.scrollHeight,
       );
-      // Read block geometry at most once per frame, while retaining the latest
-      // scroll percentage even if navigation occurs before the next frame.
-      if (frameRef.current === null) {
+      // Real browsers emit scroll about once per frame, so limit expensive
+      // block geometry by elapsed time rather than requestAnimationFrame.
+      const now = Date.now();
+      if (now - lastAnchorMeasureRef.current >= 250) {
         scrollAnchorRef.current = topBlock();
-        frameRef.current = requestAnimationFrame(() => { frameRef.current = null; });
+        lastAnchorMeasureRef.current = now;
       }
       enqueue({ scrollPct: pct, blockAnchor: scrollAnchorRef.current,
         readPct: readPctRef.current, readerKind: "html" }, false);
@@ -120,7 +121,6 @@ export function HtmlReader({
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     };
   }, [currentScrollPct, enqueue, topBlock]);
 
@@ -142,6 +142,8 @@ export function HtmlReader({
   }
 
   const content = useMemo(() => ({ __html: html }), [html]);
+  const markPending = markedPct > 0 && Boolean(saveState.explicit) &&
+    (saveState.status === "pending" || saveState.status === "saving" || saveState.status === "error");
 
   return (
     <>
@@ -152,8 +154,9 @@ export function HtmlReader({
         {markedPct > 0 && (
           <div
             data-testid="read-mark"
+            data-save-state={markPending ? "unsaved" : "saved"}
             aria-hidden
-            className="pointer-events-none absolute left-1/2 top-0 z-0 w-full max-w-[52rem] -translate-x-1/2 bg-[var(--read-tint)] transition-[height] duration-150 ease-linear"
+            className={`pointer-events-none absolute left-1/2 top-0 z-0 w-full max-w-[52rem] -translate-x-1/2 bg-[var(--read-tint)] transition-[height] duration-150 ease-linear ${markPending ? "opacity-50 outline-2 outline-dashed outline-[var(--read-accent)]" : ""}`}
             style={{ height: `${clamp01(markedPct) * 100}%` }}
           />
         )}
@@ -170,6 +173,7 @@ export function HtmlReader({
       </div>
       <ReaderBar
         marked={markedPct > 0}
+        markPending={markPending}
         onMark={onMark}
         onClear={onClear}
         progressPct={progressPct}

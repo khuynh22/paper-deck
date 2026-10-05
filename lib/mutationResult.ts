@@ -19,3 +19,8 @@ export const highlightNotFound: MutationFailure = {
   ok: false, code: "not_found",
   message: "This highlight is no longer available. Copy any unsaved note before closing."
 };
+
+export const highlightCreationNotFound: MutationFailure = {
+  ok: false, code: "not_found",
+  message: "Couldn’t confirm this highlight. Select the passage again."
+};

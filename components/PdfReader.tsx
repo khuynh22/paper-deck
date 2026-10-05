@@ -30,7 +30,7 @@ export function PdfReader({
   const { state: saveState, enqueue, retry } = useProgressSave(paperId);
   const [error, setError] = useState(false);
   const scrollPageRef = useRef(initialProgress?.blockAnchor ?? "1");
-  const frameRef = useRef<number | null>(null);
+  const lastPageMeasureRef = useRef(-Infinity);
 
   useEffect(() => {
     function measure() {
@@ -60,7 +60,7 @@ export function PdfReader({
   }, []);
 
   const persist = useCallback(
-    (extra: Partial<{ markedAnchor: string | null; status: "reading" | "done" }> = {}, immediate = true) => {
+    (extra: Partial<{ markedAnchor: string | null; status: "reading" | "done" }> = {}) => {
       const pct = currentScrollPct();
       setProgressPct(pct);
       enqueue({
@@ -68,7 +68,7 @@ export function PdfReader({
         blockAnchor: String(currentPage()),
         readerKind: "pdf",
         ...extra,
-      }, immediate);
+      }, true);
     },
     [enqueue, currentPage, currentScrollPct],
   );
@@ -77,16 +77,16 @@ export function PdfReader({
     function onScroll() {
       const pct = currentScrollPct();
       setProgressPct(pct);
-      if (frameRef.current === null) {
+      const now = Date.now();
+      if (now - lastPageMeasureRef.current >= 250) {
         scrollPageRef.current = String(currentPage());
-        frameRef.current = requestAnimationFrame(() => { frameRef.current = null; });
+        lastPageMeasureRef.current = now;
       }
       enqueue({ scrollPct: pct, blockAnchor: scrollPageRef.current, readerKind: "pdf" }, false);
     }
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     };
   }, [currentScrollPct, currentPage, enqueue]);
 
@@ -122,6 +122,9 @@ export function PdfReader({
     persist({ markedAnchor: null, status: "reading" });
   }
 
+  const markPending = marked !== null && Boolean(saveState.explicit) &&
+    (saveState.status === "pending" || saveState.status === "saving" || saveState.status === "error");
+
   if (error) {
     return (
       <div className="mx-auto max-w-md px-4 py-20 text-center text-sm text-muted-foreground">
@@ -150,12 +153,14 @@ export function PdfReader({
                 key={n}
                 data-page={n}
                 className={`relative mb-4 rounded-lg border ${
-                  isRead ? "border-l-[3px] border-l-[var(--read-accent)] bg-[var(--read-tint)]" : "border-border"
+                  isRead ? markPending
+                    ? "border-dashed border-l-[3px] border-l-[var(--read-accent)] bg-[var(--read-tint)] opacity-60"
+                    : "border-l-[3px] border-l-[var(--read-accent)] bg-[var(--read-tint)]" : "border-border"
                 }`}
               >
                 {isRead && (
                   <span className="absolute right-2 top-2 z-10 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground">
-                    read
+                    {markPending ? "unsaved" : "read"}
                   </span>
                 )}
                 <Page
@@ -171,6 +176,7 @@ export function PdfReader({
       </div>
       <ReaderBar
         marked={marked !== null}
+        markPending={markPending}
         onMark={onMark}
         onClear={onClear}
         progressPct={progressPct}

@@ -1,6 +1,6 @@
 "use client";
 
-import { SaveStatus } from "@/components/SaveStatus";
+import { SaveStatus, saveStatusText } from "@/components/SaveStatus";
 import type { SaveState } from "@/lib/reader/progressSaver";
 import { ReaderProgressBar } from "@/components/ReaderProgressBar";
 
@@ -10,6 +10,7 @@ import { ReaderProgressBar } from "@/components/ReaderProgressBar";
  */
 export function ReaderBar({
   marked,
+  markPending,
   onMark,
   onClear,
   progressPct,
@@ -17,6 +18,7 @@ export function ReaderBar({
   onRetry,
 }: {
   marked: boolean;
+  markPending: boolean;
   onMark: () => void;
   onClear: () => void;
   progressPct: number;
@@ -24,13 +26,15 @@ export function ReaderBar({
   onRetry: () => void;
 }) {
   const pct = Math.round(Math.min(1, Math.max(0, progressPct)) * 100);
+  const showStatus = saveState.status === "error" || (saveState.explicit && saveState.status !== "idle");
 
   return (
     <>
       <ReaderProgressBar pct={progressPct} />
+      <span role="status" aria-label="Reading progress save" className="sr-only">{showStatus ? saveStatusText(saveState) : ""}</span>
 
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex flex-col items-center justify-center bg-gradient-to-t from-background via-background/60 to-transparent px-3.5 pb-[calc(16px+env(safe-area-inset-bottom))] pt-10">
-        {(saveState.status === "error" || (saveState.explicit && saveState.status !== "idle")) && (
+        {showStatus && (
           <div className="pointer-events-auto mb-2 max-w-lg rounded-xl bg-card px-3 py-1.5">
             <SaveStatus state={saveState} onRetry={onRetry} />
           </div>
@@ -44,7 +48,7 @@ export function ReaderBar({
               onClick={onClear}
               className="rounded-full px-2.5 py-[7px] text-[12.5px] text-muted-foreground transition-colors hover:bg-tint"
             >
-              Clear mark
+              Clear mark{markPending ? " (unsaved)" : ""}
             </button>
           )}
           <button

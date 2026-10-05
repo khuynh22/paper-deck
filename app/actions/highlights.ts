@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { withMutation } from "@/lib/db/mutation";
-import { highlightNotFound, mutationFailure, type MutationResult } from "@/lib/mutationResult";
+import { highlightCreationNotFound, highlightNotFound, mutationFailure, type MutationResult } from "@/lib/mutationResult";
 import { serverClient } from "@/lib/db/server";
 import { currentUser } from "@/lib/auth";
 import type { Highlight } from "@/lib/types";
@@ -54,11 +54,11 @@ export async function createHighlight(input: HighlightInput, requestId: string):
     const existing = await db.from("highlights").select(HL_COLS)
       .eq("id", requestId).eq("user_id", userId).maybeSingle();
     if (existing.error) return mutationFailure(existing.error);
-    if (!existing.data) return highlightNotFound;
+    if (!existing.data) return highlightCreationNotFound;
     const h = rowToHighlight(existing.data as HighlightRow);
     if (h.paperId !== parsed.data.paperId || h.blockAnchor !== parsed.data.blockAnchor ||
         h.startOffset !== parsed.data.startOffset || h.endOffset !== parsed.data.endOffset ||
-        h.quote !== parsed.data.quote) return highlightNotFound;
+        h.quote !== parsed.data.quote) return highlightCreationNotFound;
     return { ok: true, data: h };
   });
 }
@@ -73,7 +73,7 @@ export async function updateHighlightNote(id: string, note: string | null): Prom
     const { data, error } = await db.from("highlights")
       .update({ note, updated_at: new Date().toISOString() })
       .eq("id", id).eq("user_id", userId).select("id").maybeSingle();
-    if (error) return error.code === "22P02" ? highlightNotFound : mutationFailure(error);
+    if (error) return mutationFailure(error);
     if (!data) return highlightNotFound;
     return { ok: true, data: undefined };
   });
