@@ -155,10 +155,10 @@ export function HighlightLayer({
 
   async function cancel() {
     if (busy.current) return;
-    if (pending && saveState.status === "error" &&
-        (saveState.error.code === "storage" || saveState.error.code === "auth")) {
+    if (pending && saveState.status === "error" && saveState.error.code === "storage") {
       // The insert may have committed despite its lost response. Cancel means
       // discard that stable ID, including any row already written by it.
+      // Authentication failures happen before the insert, so they can close locally.
       busy.current = true;
       locked.current = true;
       setLastOperation("discard");

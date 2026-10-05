@@ -259,6 +259,26 @@ test("cancelling an uncertain creation deletes its ID before allowing a new rang
   expect(container.querySelectorAll("mark")).toHaveLength(1);
 });
 
+test("Cancel after an authentication failure closes without trying to delete", async () => {
+  actions.createHighlight.mockResolvedValueOnce({
+    ok: false,
+    code: "auth",
+    message: "Sign in to save your highlight.",
+  });
+  const { container } = render(<Harness initial={[]} />);
+  selectText(container, 10, 16);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^highlight$/i })));
+  expect(screen.getByRole("alert")).toHaveTextContent(/sign in/i);
+
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^cancel$/i })));
+  expect(actions.deleteHighlight).not.toHaveBeenCalled();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^cancel$/i })).not.toBeInTheDocument();
+
+  selectText(container, 8, 18);
+  expect(screen.getByRole("button", { name: /^highlight$/i })).toBeEnabled();
+});
+
 test("a successful highlight toast disappears after a short delay", async () => {
   vi.useFakeTimers();
   try {

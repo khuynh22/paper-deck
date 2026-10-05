@@ -37,11 +37,18 @@ failures explain what needs to change. Database details are not exposed.
   The server inserts that UUID and, on a duplicate, reads only the current user's
   matching highlight. It never upserts over a note edited after the first insert.
   This also handles a committed insert whose acknowledgement was lost. Retry
-  uses the same ID. Cancel deletes that ID (including a committed row) before
-  the selection is dismissed, so a later different overlapping selection is
-  possible without creating nested marks. If deletion fails, the controls and
-  Retry remain visible. IDs use Web Crypto random bytes,
-  which are available on plain HTTP LAN origins.
+  uses the same ID. After a storage or transport failure, Cancel deletes that
+  ID (including a committed row) before dismissing the selection. If deletion
+  fails, the controls and Retry remain visible. An authentication failure
+  occurs before the insert, so Cancel only closes the local selection. IDs use
+  Web Crypto random bytes, which are available on plain HTTP LAN origins.
+- There is a narrow race after a lost response: an insert still running on the
+  server could commit after Cancel's delete completes. In that case the
+  highlight can reappear on reload, and a later overlapping selection may be
+  rejected. The current delete-by-ID protocol cannot guarantee cancellation
+  of an in-flight insert; durable cancellation would require server-side
+  tombstones or equivalent ordering. Retry the original selection instead of
+  Cancel when persistence is uncertain and avoiding this race matters.
 
 ## Navigation and lifecycle
 
@@ -76,12 +83,12 @@ persistent CI browser harness is tracked separately in issue #48.
 
 ### Local browser evidence (2026-10-05)
 
-Run `npm run dev` against local Supabase, then `npm run verify:reader-saves`
+Run `pnpm dev` against local Supabase, then `pnpm verify:reader-saves`
 in another shell. The script lives at
 [`scripts/verify-reader-saves.mjs`](../scripts/verify-reader-saves.mjs),
 requires a local `.env.local` with the app's Supabase service-role key, and
 creates then removes a temporary user and paper. Install Chromium with
-`npx playwright install chromium` if needed, or set `READER_SAVE_CHROMIUM`
+`pnpm exec playwright install chromium` if needed, or set `READER_SAVE_CHROMIUM`
 to an installed Chromium executable.
 
 The development app was exercised in Chromium against local Supabase with a
