@@ -13,7 +13,7 @@ export function SaveStatus({ state, onRetry }: { state: SaveState; onRetry: () =
             Sign in in a new tab
           </a>
         )}
-        {state.error.code !== "validation" && (
+        {(state.error.code === "storage" || state.error.code === "auth") && (
           <button type="button" onClick={onRetry} className="font-semibold underline">Retry</button>
         )}
       </div>

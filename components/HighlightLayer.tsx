@@ -13,7 +13,7 @@ import {
 import { runReaderAction } from "@/lib/reader/runReaderAction";
 import { SaveStatus } from "@/components/SaveStatus";
 import { useUnsavedChanges } from "@/components/useUnsavedChanges";
-import { mutationFailure } from "@/lib/mutationResult";
+import { newHighlightId } from "@/lib/reader/highlightId";
 import type { SaveState } from "@/lib/reader/progressSaver";
 import { NOTE_MAX } from "@/lib/db/highlightRow";
 import { Button } from "@/components/ui";
@@ -44,11 +44,19 @@ export function HighlightLayer({
   const [editing, setEditing] = useState<Editing | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const draftRef = useRef("");
+  // Keep uncertain creation IDs across Cancel and reselection in this reader.
+  const failedCreationIds = useRef(new Map<string, string>());
   const busy = useRef(false);
   const locked = useRef(false);
   const [saveState, setSaveState] = useState<SaveState>({ status: "idle" });
   const [lastOperation, setLastOperation] = useState<"create" | "note" | "delete">("create");
   const saving = saveState.status === "saving";
+  useEffect(() => {
+    if (saveState.status !== "saved") return;
+    const timer = setTimeout(() => setSaveState((current) =>
+      current.status === "saved" ? { status: "idle" } : current), 2000);
+    return () => clearTimeout(timer);
+  }, [saveState]);
   useUnsavedChanges(saving || saveState.status === "error" || Boolean(editing &&
     noteDraft !== (highlights.find((h) => h.id === editing.id)?.note ?? "")));
 
@@ -134,7 +142,7 @@ export function HighlightLayer({
           : { left: 0, top: 0, width: 0 };
       setSaveState({ status: "idle" });
       setPending({
-        requestId: crypto.randomUUID(),
+        requestId: failedCreationIds.current.get(`${block.getAttribute("data-blk")}\0${offsets.start}\0${offsets.end}\0${offsets.quote}`) ?? newHighlightId(),
         x: rect.left + rect.width / 2,
         y: rect.top,
         blockAnchor: block.getAttribute("data-blk") ?? "",
@@ -162,6 +170,7 @@ export function HighlightLayer({
     locked.current = true;
     setLastOperation("create");
     setSaveState({ status: "saving" });
+    const selectionKey = `${pending.blockAnchor}\0${pending.start}\0${pending.end}\0${pending.quote}`;
     try {
       const result = await runReaderAction(() => createHighlight({
         paperId,
@@ -172,16 +181,16 @@ export function HighlightLayer({
         note: null,
       }, pending.requestId));
       if (!result.ok) {
+        failedCreationIds.current.set(selectionKey, pending.requestId);
         setSaveState({ status: "error", error: result });
         return;
       }
+      failedCreationIds.current.delete(selectionKey);
       setHighlights((hs) => [...hs.filter((h) => h.id !== result.data.id), result.data]);
       setPending(null);
       locked.current = false;
       window.getSelection()?.removeAllRanges();
       setSaveState({ status: "saved" });
-    } catch (error) {
-      setSaveState({ status: "error", error: mutationFailure(error) });
     } finally {
       busy.current = false;
     }
@@ -210,8 +219,6 @@ export function HighlightLayer({
       } else {
         setSaveState({ status: "pending" });
       }
-    } catch (error) {
-      setSaveState({ status: "error", error: mutationFailure(error) });
     } finally {
       busy.current = false;
     }
@@ -232,8 +239,6 @@ export function HighlightLayer({
       setEditing(null);
       locked.current = false;
       setSaveState({ status: "saved" });
-    } catch (error) {
-      setSaveState({ status: "error", error: mutationFailure(error) });
     } finally {
       busy.current = false;
     }

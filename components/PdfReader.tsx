@@ -29,6 +29,8 @@ export function PdfReader({
   const [progressPct, setProgressPct] = useState(initialProgress?.scrollPct ?? 0);
   const { state: saveState, enqueue, retry } = useProgressSave(paperId);
   const [error, setError] = useState(false);
+  const scrollPageRef = useRef(initialProgress?.blockAnchor ?? "1");
+  const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
     function measure() {
@@ -73,14 +75,20 @@ export function PdfReader({
 
   useEffect(() => {
     function onScroll() {
-      setProgressPct(currentScrollPct());
-      persist({}, false);
+      const pct = currentScrollPct();
+      setProgressPct(pct);
+      if (frameRef.current === null) {
+        scrollPageRef.current = String(currentPage());
+        frameRef.current = requestAnimationFrame(() => { frameRef.current = null; });
+      }
+      enqueue({ scrollPct: pct, blockAnchor: scrollPageRef.current, readerKind: "pdf" }, false);
     }
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     };
-  }, [currentScrollPct, persist]);
+  }, [currentScrollPct, currentPage, enqueue]);
 
   function onDocumentLoad({ numPages: n }: { numPages: number }) {
     setNumPages(n);

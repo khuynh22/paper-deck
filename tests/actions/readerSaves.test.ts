@@ -12,7 +12,7 @@ const db = vi.hoisted(() => {
   return { query, result, getUser: vi.fn(), from: vi.fn(() => query) };
 });
 vi.mock("@/lib/db/server", () => ({ serverClient: async () => db }));
-vi.mock("@/lib/auth", () => ({ currentUser: async () => (await db.getUser()).data.user }));
+vi.mock("@/lib/auth", () => ({ currentUser: async () => (await db.getUser()).data.user, authenticatedUser: async () => db.getUser() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { saveProgress } from "@/app/actions/progress";
@@ -119,4 +119,25 @@ test.each([
   db.getUser.mockResolvedValue({ data: { user: null }, error: null });
   expect(await action()).toMatchObject({ ok: false, code: "auth" });
   expect(db.from).not.toHaveBeenCalled();
+});
+
+test("highlight creation sends the stable UUID and authenticated owner to the database", async () => {
+  await createHighlight(input, ID);
+  expect(db.query.insert).toHaveBeenCalledWith(expect.objectContaining({ id: ID, user_id: "u1" }));
+});
+
+test("a highlight removed in another tab is non-retryable", async () => {
+  db.result.mockResolvedValue({ data: null, error: null });
+  expect(await updateHighlightNote(ID, "draft")).toMatchObject({ ok: false, code: "not_found" });
+});
+
+test("a malformed highlight ID does not reach the database", async () => {
+  expect(await updateHighlightNote("invalid", "draft")).toMatchObject({ ok: false, code: "not_found" });
+  expect(db.query.update).not.toHaveBeenCalled();
+});
+
+test("an unresolved duplicate highlight is non-retryable", async () => {
+  db.result.mockResolvedValueOnce({ data: null, error: { code: "23505" } });
+  db.result.mockResolvedValueOnce({ data: null, error: null });
+  expect(await createHighlight(input, ID)).toMatchObject({ ok: false, code: "not_found" });
 });

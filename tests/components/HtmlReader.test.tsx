@@ -195,3 +195,31 @@ test("unmount flushes the latest scroll snapshot instead of cancelling the debou
   await act(async () => unmount());
   expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ scrollPct: 0.375 });
 });
+
+test("routine scroll autosaves stay quiet and do not warn on navigation", () => {
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  try {
+    const { container } = render(
+      <HtmlReader paperId="p1" html={`${HTML}<a href="/paper/p1">Paper details</a>`} initialProgress={null} />,
+    );
+    setGeometry(300, 200, 1000);
+    fireEvent.scroll(window);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    const link = container.querySelector("a")!;
+    link.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(link);
+    expect(confirm).not.toHaveBeenCalled();
+  } finally { confirm.mockRestore(); }
+});
+
+test("scroll position captures block geometry at most once per animation frame", () => {
+  const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+  try {
+    const { container } = renderReader(null);
+    const paper = container.querySelector<HTMLElement>(".paper-html")!;
+    const geometry = vi.spyOn(paper, "querySelectorAll");
+    setGeometry(300, 200, 1000);
+    for (let i = 0; i < 20; i++) fireEvent.scroll(window);
+    expect(geometry).toHaveBeenCalledTimes(1);
+  } finally { frame.mockRestore(); }
+});

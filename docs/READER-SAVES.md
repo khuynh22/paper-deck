@@ -9,14 +9,16 @@ failures explain what needs to change. Database details are not exposed.
 ## Ordering and retries
 
 - HTML and PDF progress use a per-mounted-reader queue. Scroll snapshots are
-  captured immediately and debounced for 600 ms. Mark/clear requests flush
+  captured immediately and debounced for 600 ms. Block/page geometry is
+  measured at most once per animation frame. Mark/clear requests flush
   immediately. Only one write is in flight; later partial updates are merged.
 - If a write fails, its fields are merged back under newer pending fields. For
   example, a later clear beats an earlier failed mark, while a scroll-only update
-  retains a failed mark. Autosaves pause until explicit Retry; scrolling updates
+  retains a failed mark. Background autosaves pause until explicit Retry or a new Mark/Clear; scrolling updates
   the retained snapshot without producing a retry loop.
 - The local mark remains a preview while Saving/Unsaved/failed is displayed.
-  Saved appears only when the latest queued snapshot has been acknowledged.
+  Scroll-only saves stay quiet unless they fail. Mark/Clear shows Saving and
+  briefly shows Saved only when the latest queued snapshot is acknowledged.
 - A note remains editable during a save, but other mutations are disabled. An
   older acknowledgement cannot close the editor or mark newer text as saved.
   Failed notes retain their text; failed deletion retains the highlight/editor.
@@ -25,7 +27,10 @@ failures explain what needs to change. Database details are not exposed.
 - Each highlight selection gets one UUID, retained through all creation retries.
   The server inserts that UUID and, on a duplicate, reads only the current user's
   matching highlight. It never upserts over a note edited after the first insert.
-  This also handles a committed insert whose acknowledgement was lost.
+  This also handles a committed insert whose acknowledgement was lost. The
+  same ID is retained if a failed creation is cancelled and its passage is
+  reselected while the reader stays mounted. IDs use Web Crypto random bytes,
+  which are available on plain HTTP LAN origins.
 
 ## Navigation and lifecycle
 

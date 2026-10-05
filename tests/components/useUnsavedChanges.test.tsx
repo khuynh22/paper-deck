@@ -32,3 +32,12 @@ test("sign-in in another tab does not discard the draft or prompt to leave", () 
   expect(fireEvent.click(getByRole("link"))).toBe(true);
   expect(confirm).not.toHaveBeenCalled();
 });
+
+test("two dirty reader surfaces ask only once when leaving", () => {
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  render(<><Harness dirty /><Harness dirty /></>);
+  const link = document.querySelector("a")!;
+  link.addEventListener("click", (event) => event.preventDefault());
+  fireEvent.click(link);
+  expect(confirm).toHaveBeenCalledTimes(1);
+});

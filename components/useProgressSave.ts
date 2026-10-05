@@ -12,7 +12,8 @@ export function useProgressSave(paperId: string) {
     runReaderAction(() => saveProgress(paperId, update)),
   ));
   const state = useSyncExternalStore(saver.subscribe, saver.getSnapshot, saver.getSnapshot);
-  useUnsavedChanges(state.status !== "idle" && state.status !== "saved");
+  useUnsavedChanges(state.status === "error" || (Boolean(state.explicit) &&
+    (state.status === "pending" || state.status === "saving")));
   useEffect(() => {
     const flush = () => { if (document.visibilityState === "hidden") void saver.flush(); };
     document.addEventListener("visibilitychange", flush);

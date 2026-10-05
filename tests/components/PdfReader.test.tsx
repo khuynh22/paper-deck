@@ -46,3 +46,15 @@ test("PDF unmount flushes a debounced scroll snapshot", async () => {
   await act(async () => unmount());
   expect(saveProgress).toHaveBeenCalledWith("p1", expect.objectContaining({ readerKind: "pdf" }));
 });
+
+test("PDF scroll computes the current page once per animation frame", () => {
+  const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+  try {
+    const { container } = render(<PdfReader paperId="p1" initialProgress={null} />);
+    const pages = container.querySelector<HTMLElement>("[data-page]")?.parentElement ??
+      container.querySelector<HTMLElement>(".mx-auto.flex")!;
+    const geometry = vi.spyOn(pages, "querySelectorAll");
+    for (let i = 0; i < 20; i++) fireEvent.scroll(window);
+    expect(geometry).toHaveBeenCalledTimes(1);
+  } finally { frame.mockRestore(); }
+});

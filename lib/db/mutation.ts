@@ -1,3 +1,4 @@
+import { authenticatedUser } from "@/lib/auth";
 import { serverClient } from "@/lib/db/server";
 import { mutationFailure, type MutationResult } from "@/lib/mutationResult";
 
@@ -7,7 +8,7 @@ export async function withMutation<T>(
 ): Promise<MutationResult<T>> {
   try {
     const db = await serverClient();
-    const { data, error } = await db.auth.getUser();
+    const { data, error } = await authenticatedUser(db);
     if (error) return mutationFailure(error);
     if (!data.user) return mutationFailure({ status: 401 });
     return await write(db, data.user.id);

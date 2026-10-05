@@ -32,6 +32,8 @@ export function HtmlReader({
   const { state: saveState, enqueue, retry } = useProgressSave(paperId);
   // Viewport-bottom fraction, written on scroll so the shelf "% read" is unchanged.
   const readPctRef = useRef(clamp01(initialProgress?.readPct ?? 0));
+  const scrollAnchorRef = useRef<string | null>(initialProgress?.blockAnchor ?? null);
+  const frameRef = useRef<number | null>(null);
 
   /** All block anchors, for validating the saved resume target. */
   const orderedAnchors = useCallback((): string[] => {
@@ -99,19 +101,28 @@ export function HtmlReader({
   // Track scroll position (resume + the shelf's read_pct) and debounce saves.
   useEffect(() => {
     function onScroll() {
-      setProgressPct(currentScrollPct());
+      const pct = currentScrollPct();
+      setProgressPct(pct);
       readPctRef.current = readDepthFraction(
         window.scrollY,
         window.innerHeight,
         document.documentElement.scrollHeight,
       );
-      persist({}, false);
+      // Read block geometry at most once per frame, while retaining the latest
+      // scroll percentage even if navigation occurs before the next frame.
+      if (frameRef.current === null) {
+        scrollAnchorRef.current = topBlock();
+        frameRef.current = requestAnimationFrame(() => { frameRef.current = null; });
+      }
+      enqueue({ scrollPct: pct, blockAnchor: scrollAnchorRef.current,
+        readPct: readPctRef.current, readerKind: "html" }, false);
     }
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     };
-  }, [currentScrollPct, persist]);
+  }, [currentScrollPct, enqueue, topBlock]);
 
   function onMark() {
     const el = containerRef.current;

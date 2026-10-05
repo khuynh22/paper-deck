@@ -240,3 +240,41 @@ test("a new selection does not inherit the previous highlight's Saved message", 
   selectText(container, 0, 9);
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
+
+test("cancelling a lost-response creation retains its UUID for the same selection", async () => {
+  actions.createHighlight.mockResolvedValueOnce(FAILURE);
+  actions.createHighlight.mockResolvedValueOnce({ ok: true, data: INITIAL });
+  const { container } = render(<Harness initial={[]} />);
+  selectText(container, 10, 16);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^highlight$/i })));
+  const firstId = actions.createHighlight.mock.calls[0][1];
+  fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+  selectText(container, 10, 16);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^highlight$/i })));
+  expect(actions.createHighlight.mock.calls[1][1]).toBe(firstId);
+  expect(container.querySelectorAll("mark")).toHaveLength(1);
+});
+
+test("a successful highlight toast disappears after a short delay", async () => {
+  vi.useFakeTimers();
+  try {
+    actions.createHighlight.mockResolvedValueOnce({ ok: true, data: INITIAL });
+    const { container } = render(<Harness initial={[]} />);
+    selectText(container, 10, 16);
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /^highlight$/i })));
+    expect(screen.getByRole("status")).toHaveTextContent("Saved");
+    act(() => vi.advanceTimersByTime(2500));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  } finally { vi.useRealTimers(); }
+});
+
+test("a non-retryable note failure keeps the draft but offers Cancel instead of Retry", async () => {
+  actions.updateHighlightNote.mockResolvedValueOnce({ ok: false, code: "not_found", message: "Highlight no longer exists." });
+  const { container } = render(<Harness initial={[INITIAL]} />);
+  fireEvent.click(container.querySelector("mark")!);
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "copy me" } });
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^save$/i })));
+  expect(screen.getByRole("textbox")).toHaveValue("copy me");
+  expect(screen.queryByRole("button", { name: /^retry$/i })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
+});
