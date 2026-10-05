@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
-import { Instrument_Sans, Newsreader, Spline_Sans_Mono } from "next/font/google";
+import {
+  Instrument_Sans,
+  Newsreader,
+  Spline_Sans_Mono,
+} from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -34,7 +38,11 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     url: "/",
   },
-  twitter: { card: "summary_large_image", title: "PaperDeck", description: DESCRIPTION },
+  twitter: {
+    card: "summary_large_image",
+    title: "PaperDeck",
+    description: DESCRIPTION,
+  },
 };
 
 /**
@@ -43,7 +51,9 @@ export const metadata: Metadata = {
  */
 const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("pd-theme");if(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches)t="dark";if(t==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}})()`;
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="en"
@@ -55,7 +65,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <SiteHeader />
-        <main className="flex-1 pb-20 sm:pb-0">{children}</main>
+        <main className="flex-1 pb-20 lg:pb-0">{children}</main>
         <SiteFooter />
         <BottomNav />
       </body>

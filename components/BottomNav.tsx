@@ -5,6 +5,23 @@ import { usePathname } from "next/navigation";
 
 const ITEMS = [
   {
+    label: "Updates",
+    href: "/updates",
+    icon: (
+      <svg
+        width="21"
+        height="21"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      >
+        <path d="M4 6h16M4 12h16M4 18h10" />
+        <circle cx="20" cy="18" r="2" />
+      </svg>
+    ),
+  },
+  {
     label: "My Notes",
     href: "/notes",
     icon: (
@@ -84,7 +101,7 @@ export function BottomNav() {
   if (pathname.startsWith("/reader/")) return null;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-line bg-background/90 px-2 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-md sm:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-line bg-background/90 px-2 pb-[calc(6px+env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-md lg:hidden">
       {ITEMS.map((item) => {
         const active =
           item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);

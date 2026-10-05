@@ -7,13 +7,14 @@ const ITEMS = [
   { label: "Feed", href: "/" },
   { label: "Library", href: "/library" },
   { label: "My Notes", href: "/notes" },
+  { label: "Updates", href: "/updates" },
 ];
 
 export function HeaderNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="hidden items-center gap-0.5 sm:flex">
+    <nav className="hidden items-center gap-0.5 lg:flex">
       {ITEMS.map((item) => {
         const active =
           item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
