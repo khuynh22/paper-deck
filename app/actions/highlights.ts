@@ -1,5 +1,8 @@
 "use server";
 
+import { z } from "zod";
+import { withMutation } from "@/lib/db/mutation";
+import { mutationFailure, type MutationResult } from "@/lib/mutationResult";
 import { serverClient } from "@/lib/db/server";
 import { currentUser } from "@/lib/auth";
 import type { Highlight } from "@/lib/types";
@@ -28,39 +31,51 @@ export async function loadHighlights(paperId: string): Promise<Highlight[]> {
   return ((data as HighlightRow[] | null) ?? []).map(rowToHighlight);
 }
 
-/** Create a highlight; returns the saved row (with id) for optimistic painting, or null. */
-export async function createHighlight(input: HighlightInput): Promise<Highlight | null> {
-  const user = await currentUser();
-  if (!user) return null;
+/** A stable client-generated id makes retries after a lost response idempotent. */
+export async function createHighlight(input: HighlightInput, requestId: string): Promise<MutationResult<Highlight>> {
   const parsed = highlightInputSchema.safeParse(input);
-  if (!parsed.success) return null;
-  const db = await serverClient();
-  const { data, error } = await db
-    .from("highlights")
-    .insert(highlightInsert(user.id, parsed.data))
-    .select(HL_COLS)
-    .single();
-  if (error || !data) return null;
-  return rowToHighlight(data as HighlightRow);
+  if (!parsed.success || !z.uuid().safeParse(requestId).success) {
+    return { ok: false, code: "validation", message: "Couldn’t save this selection. Select a shorter passage and try again." };
+  }
+  return withMutation(async (db, userId) => {
+    const { data, error } = await db.from("highlights")
+      .insert({ ...highlightInsert(userId, parsed.data), id: requestId })
+      .select(HL_COLS).single();
+    if (!error && data) return { ok: true, data: rowToHighlight(data as HighlightRow) };
+    if (error?.code !== "23505") return mutationFailure(error);
+
+    // An earlier attempt may have committed even though its response was lost.
+    // Read only this user's row; never upsert over a subsequently edited note.
+    const existing = await db.from("highlights").select(HL_COLS)
+      .eq("id", requestId).eq("user_id", userId).maybeSingle();
+    if (existing.error || !existing.data) return mutationFailure(existing.error);
+    const h = rowToHighlight(existing.data as HighlightRow);
+    if (h.paperId !== parsed.data.paperId || h.blockAnchor !== parsed.data.blockAnchor ||
+        h.startOffset !== parsed.data.startOffset || h.endOffset !== parsed.data.endOffset ||
+        h.quote !== parsed.data.quote) return mutationFailure();
+    return { ok: true, data: h };
+  });
 }
 
-/** Set (or clear) the note on a highlight the user owns. */
-export async function updateHighlightNote(id: string, note: string | null): Promise<void> {
-  const user = await currentUser();
-  if (!user) return;
-  const capped = note && note.length > NOTE_MAX ? note.slice(0, NOTE_MAX) : note;
-  const db = await serverClient();
-  await db
-    .from("highlights")
-    .update({ note: capped ?? null, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("user_id", user.id);
+/** Set (or clear) the note; a zero-row update is not a successful save. */
+export async function updateHighlightNote(id: string, note: string | null): Promise<MutationResult> {
+  if (note !== null && (typeof note !== "string" || note.length > NOTE_MAX)) {
+    return { ok: false, code: "validation", message: `Notes must be ${NOTE_MAX} characters or fewer.` };
+  }
+  return withMutation(async (db, userId) => {
+    const { data, error } = await db.from("highlights")
+      .update({ note, updated_at: new Date().toISOString() })
+      .eq("id", id).eq("user_id", userId).select("id").maybeSingle();
+    if (error || !data) return mutationFailure(error);
+    return { ok: true, data: undefined };
+  });
 }
 
-/** Delete a highlight the user owns. */
-export async function deleteHighlight(id: string): Promise<void> {
-  const user = await currentUser();
-  if (!user) return;
-  const db = await serverClient();
-  await db.from("highlights").delete().eq("id", id).eq("user_id", user.id);
+/** Deletes are idempotent: an already absent row is a successful retry. */
+export async function deleteHighlight(id: string): Promise<MutationResult> {
+  return withMutation(async (db, userId) => {
+    const { error } = await db.from("highlights").delete().eq("id", id).eq("user_id", userId);
+    if (error) return mutationFailure(error);
+    return { ok: true, data: undefined };
+  });
 }
