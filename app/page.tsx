@@ -3,18 +3,16 @@ import { FeedTabs } from "@/components/FeedTabs";
 import { PaperCard } from "@/components/PaperCard";
 import { RefreshButton } from "@/components/RefreshButton";
 import { RefreshHealth } from "@/components/RefreshHealth";
-import { getFeed } from "@/lib/corpus/query";
+import { getDiscoveryPage } from "@/lib/corpus/query";
+import { parseDiscovery, type DiscoveryInput } from "@/lib/corpus/discovery";
+import { DiscoveryFilters, DiscoveryPages } from "@/components/DiscoveryControls";
 import { getProgressMap, getStarredIds } from "@/lib/db/queries";
 import { currentUser } from "@/lib/auth";
 import { isOwner } from "@/lib/env";
-import { FEED_TABS, type FeedTab, type PaperRow } from "@/lib/types";
+import { type PaperRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-
-function resolveTab(value: string | undefined): FeedTab {
-  return FEED_TABS.includes(value as FeedTab) ? (value as FeedTab) : "latest";
-}
 
 function todayLine(): string {
   const now = new Date();
@@ -26,14 +24,16 @@ function todayLine(): string {
 export default async function FeedPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<DiscoveryInput>;
 }) {
-  const tab = resolveTab((await searchParams).tab);
+  const params = parseDiscovery(await searchParams);
+  const tab = params.tab;
 
   let papers: PaperRow[] = [];
   let dbError: string | null = null;
+  let hasMore = false;
   try {
-    papers = await getFeed(tab);
+    ({ papers, hasMore } = await getDiscoveryPage(params));
   } catch (e) {
     dbError = e instanceof Error ? e.message : String(e);
   }
@@ -71,8 +71,9 @@ export default async function FeedPage({
       {owner && <RefreshHealth />}
 
       <div className="mt-5">
-        <FeedTabs active={tab} />
+        <FeedTabs active={tab} params={params} />
       </div>
+      <DiscoveryFilters path="/" params={params} />
 
       {dbError ? (
         <div className="mt-8 rounded-xl border border-line bg-card p-6 text-sm">
@@ -84,9 +85,9 @@ export default async function FeedPage({
         </div>
       ) : papers.length === 0 ? (
         <div className="flex flex-col items-center gap-1.5 px-5 py-16 text-center">
-          <p className="font-serif text-xl font-medium">No papers yet</p>
+          <p className="font-serif text-xl font-medium">No papers match this selection</p>
           <p className="max-w-[340px] text-sm leading-relaxed text-muted-foreground">
-            The corpus is empty. Trigger a refresh (owner) or run the cron endpoint to pull papers.
+            Try broader filters or return to the first page. New papers appear after a corpus refresh.
           </p>
         </div>
       ) : (
@@ -101,6 +102,7 @@ export default async function FeedPage({
           ))}
         </div>
       )}
+      {!dbError && <DiscoveryPages path="/" params={params} count={papers.length} hasMore={hasMore} />}
     </div>
   );
 }

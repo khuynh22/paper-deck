@@ -37,8 +37,25 @@ try {
   assert.deepEqual(page(40), expected.slice(0, 40));
   assert.deepEqual([...page(20), ...page(20, 20), ...page(20, 40)], expected, "Frozen pages must have no gaps or duplicates");
   assert.equal(sql("select has_function_privilege('anon', 'trending_papers(timestamptz,integer,integer)', 'EXECUTE');").trim(), "t");
+  sql(readFileSync("tests/database/discovery.sql", "utf8"));
   sql("truncate papers cascade; insert into papers(id,title,hf_upvotes,pwc_stars,published_at) select md5(i::text)::uuid,'Plan fixture '||i,i%100,i%500,'2026-06-06'::timestamptz - (i%3650)*interval '1 day' from generate_series(1,50000) i; analyze papers;");
   const plan = sql(`explain (analyze, buffers, format json) select * from trending_papers('${asOf}',40,0);`);
   console.log("50,000-row actual RPC plan:\n" + plan);
+  sql("update papers p set categories=case when i%100=0 then array['cs.AI'] else array['cs.LG'] end, venue=case when i%100=0 then 'TargetConf' else 'OtherConf' end from generate_series(1,50000) i where p.id=md5(i::text)::uuid; analyze papers;");
+  function filterPlan(label, filter) {
+    const result = JSON.parse(sql(`explain (analyze,buffers,format json) select * from discover_papers(${filter});`))[0];
+    const nodes = [];
+    function walk(node) { nodes.push({ type: node["Node Type"], index: node["Index Name"] }); for (const child of node.Plans || []) walk(child); }
+    walk(result.Plan);
+    console.log(JSON.stringify({ label, milliseconds: result["Execution Time"], buffers: result.Plan["Shared Hit Blocks"], nodes }));
+  }
+  // Only this newly created disposable database is modified for comparison.
+  sql("drop index if exists papers_venue_lower_idx;");
+  filterPlan("topic before indexes", "filter_topic=>'cs.AI'");
+  filterPlan("venue before indexes", "filter_venue=>'targetconf'");
+  sql("create index if not exists papers_categories_idx on papers using gin(categories); create index if not exists papers_venue_lower_idx on papers(lower(venue)); analyze papers;");
+  filterPlan("topic with index", "filter_topic=>'cs.AI'");
+  filterPlan("venue with index", "filter_venue=>'targetconf'");
+  console.log("Discovery database checks passed: independent/combined filters, tied ordering, >40 pagination in all modes, date boundaries, exact IDs, empty selections.");
   console.log("Ranking database checks passed: pre-limit regression, reference parity, future/null/ancient dates, zero signals, ties, frozen paging, public access.");
 } finally { docker(["dropdb", "-U", "postgres", database]); }
