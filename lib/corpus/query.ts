@@ -1,7 +1,23 @@
 import { serverClient } from "@/lib/db/server";
 import type { FeedTab, PaperRow } from "@/lib/types";
+import { PAGE_SIZE, type DiscoveryParams } from "./discovery";
+import { extractArxivId } from "@/lib/sources/arxiv";
 
 export { trendingScore } from "./score";
+
+export async function getDiscoveryPage(params: DiscoveryParams, search = false): Promise<{ papers: PaperRow[]; hasMore: boolean }> {
+  const db = await serverClient();
+  const { data, error } = await db.rpc("discover_papers", {
+    query_text: search ? params.q : "", sort_mode: search ? "search" : params.tab,
+    filter_topic: params.topic || null, filter_venue: params.venue || null,
+    filter_from: params.from || null, filter_to: params.to || null,
+    exact_arxiv: search ? extractArxivId(params.q) : null,
+    as_of: params.asOf, page_limit: PAGE_SIZE + 1, page_offset: (params.page - 1) * PAGE_SIZE,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as PaperRow[];
+  return { papers: rows.slice(0, PAGE_SIZE), hasMore: rows.length > PAGE_SIZE };
+}
 
 /** Fetch a feed view over the shared corpus. */
 export async function getFeed(tab: FeedTab, limit = 40, options: { asOf?: string; offset?: number } = {}): Promise<PaperRow[]> {

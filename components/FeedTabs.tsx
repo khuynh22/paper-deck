@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FEED_TABS, type FeedTab } from "@/lib/types";
+import { discoveryHref, type DiscoveryParams } from "@/lib/corpus/discovery";
 
 const LABELS: Record<FeedTab, string> = {
   latest: "Latest",
@@ -13,7 +14,7 @@ const HINTS: Record<FeedTab, { text: string; href?: string }> = {
   famous: { text: "ranked by citations" },
 };
 
-export function FeedTabs({ active }: { active: FeedTab }) {
+export function FeedTabs({ active, params }: { active: FeedTab; params?: DiscoveryParams }) {
   const hint = HINTS[active];
   const hintClass = "ml-auto hidden font-mono text-[11px] text-faint min-[540px]:inline";
   return (
@@ -23,7 +24,7 @@ export function FeedTabs({ active }: { active: FeedTab }) {
         return (
           <Link
             key={tab}
-            href={tab === "latest" ? "/" : `/?tab=${tab}`}
+            href={params ? discoveryHref("/", params, { tab, page: 1 }) : tab === "latest" ? "/" : `/?tab=${tab}`}
             aria-current={isActive ? "page" : undefined}
             className={`-mb-px border-b-2 px-px pb-[11px] pt-2 text-[14.5px] tracking-wide transition-colors ${
               isActive

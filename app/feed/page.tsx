@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
+import { discoveryHref, parseDiscovery, type DiscoveryInput } from "@/lib/corpus/discovery";
 
 /** The feed moved to the home page; keep old /feed links working. */
 export default async function FeedRedirect({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<DiscoveryInput>;
 }) {
-  const { tab } = await searchParams;
-  redirect(tab ? `/?tab=${encodeURIComponent(tab)}` : "/");
+  redirect(discoveryHref("/", parseDiscovery(await searchParams)));
 }
