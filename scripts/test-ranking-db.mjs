@@ -41,6 +41,7 @@ try {
   sql(readFileSync("tests/database/library.sql", "utf8"));
   sql(readFileSync("tests/database/notes.sql", "utf8"));
   sql(readFileSync("tests/database/pdf-annotations.sql", "utf8"));
+  sql(readFileSync("tests/database/interests.sql", "utf8"));
   sql("truncate papers cascade; insert into papers(id,title,hf_upvotes,pwc_stars,published_at) select md5(i::text)::uuid,'Plan fixture '||i,i%100,i%500,'2026-06-06'::timestamptz - (i%3650)*interval '1 day' from generate_series(1,50000) i; analyze papers;");
   const plan = sql(`explain (analyze, buffers, format json) select * from trending_papers('${asOf}',40,0);`);
   console.log("50,000-row actual RPC plan:\n" + plan);
