@@ -1,3 +1,4 @@
+import { sourceFetch } from "./http";
 import type { NormalizedPaper } from "@/lib/types";
 
 interface HfAuthor {
@@ -46,7 +47,7 @@ export function parseHfDaily(json: unknown): NormalizedPaper[] {
 }
 
 export async function fetchHfDaily(): Promise<NormalizedPaper[]> {
-  const res = await fetch("https://huggingface.co/api/daily_papers", {
+  const res = await sourceFetch("https://huggingface.co/api/daily_papers", {
     headers: { "User-Agent": "PaperDeck/1.0 (research reader)" },
   });
   if (!res.ok) throw new Error(`huggingface ${res.status}`);

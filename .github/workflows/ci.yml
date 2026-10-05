@@ -3,8 +3,8 @@ name: CI
 on:
   push:
     branches: [master]
+  # Include dependent PR bases so stacked changes receive the same checks.
   pull_request:
-    branches: [master]
 
 concurrency:
   group: ci-${{ github.ref }}

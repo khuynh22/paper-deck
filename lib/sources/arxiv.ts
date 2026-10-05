@@ -1,3 +1,4 @@
+import { sourceFetch } from "./http";
 import { XMLParser } from "fast-xml-parser";
 import type { NormalizedPaper } from "@/lib/types";
 
@@ -70,7 +71,7 @@ export async function fetchArxivLatest(
   const url =
     `https://export.arxiv.org/api/query?search_query=${query}` +
     `&sortBy=submittedDate&sortOrder=descending&start=0&max_results=${max}`;
-  const res = await fetch(url, { headers: { "User-Agent": "PaperDeck/1.0 (research reader)" } });
+  const res = await sourceFetch(url, { headers: { "User-Agent": "PaperDeck/1.0 (research reader)" } });
   if (!res.ok) throw new Error(`arxiv ${res.status}`);
   return parseArxivAtom(await res.text());
 }
@@ -145,7 +146,7 @@ export async function searchArxiv(query: string, max = 25): Promise<NormalizedPa
   if (!query.trim()) return [];
   const id = extractArxivId(query);
   const url = id ? buildArxivIdUrl(id) : buildArxivSearchUrl(query, max);
-  const res = await fetch(url, {
+  const res = await sourceFetch(url, {
     headers: { "User-Agent": "PaperDeck/1.0 (research reader)" },
   });
   if (!res.ok) throw new Error(`arxiv ${res.status}`);

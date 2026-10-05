@@ -29,13 +29,14 @@ export interface IngestionResult {
 }
 
 /** Each input gets an outcome; bad records cannot discard unrelated papers. */
-export async function upsertPapers(papers: NormalizedPaper[]): Promise<IngestionResult> {
+export async function upsertPapers(papers: NormalizedPaper[], signal?: AbortSignal): Promise<IngestionResult> {
   const result: IngestionResult = { inserted: 0, updated: 0, skipped: 0, failed: 0 };
   if (!papers.length) return result;
   const db = serviceClient();
   for (let offset = 0; offset < papers.length; offset += 100) {
     const rows = papers.slice(offset, offset + 100).map(toPaperRow);
-    const { data, error } = await db.rpc("merge_papers", { incoming: rows });
+    const request = db.rpc("merge_papers", { incoming: rows });
+    const { data, error } = await (signal ? request.abortSignal(signal) : request);
     if (error || !Array.isArray(data) || data.length !== rows.length) {
       throw new Error("Paper import could not be confirmed. Please retry.");
     }

@@ -1,3 +1,4 @@
+import { sourceFetch } from "./http";
 import type { NormalizedPaper } from "@/lib/types";
 
 interface PwcPaper {
@@ -40,16 +41,11 @@ export function parsePwc(json: unknown): NormalizedPaper[] {
 }
 
 export async function fetchPwcTrending(): Promise<NormalizedPaper[]> {
-  try {
-    const res = await fetch("https://paperswithcode.com/api/v1/papers/?items_per_page=50", {
+    const res = await sourceFetch("https://paperswithcode.com/api/v1/papers/?items_per_page=50", {
       headers: { "User-Agent": "PaperDeck/1.0 (research reader)", Accept: "application/json" },
       redirect: "follow",
     });
     const contentType = res.headers.get("content-type") ?? "";
-    // Retired API now serves HTML — treat as no results rather than crashing.
-    if (!res.ok || !contentType.includes("application/json")) return [];
+    if (!contentType.includes("application/json")) throw new Error("Retired source format");
     return parsePwc(await res.json());
-  } catch {
-    return [];
-  }
 }

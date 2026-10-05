@@ -30,6 +30,7 @@ try {
     sql(readFileSync("supabase/migrations/" + file, "utf8"));
   }
   sql(readFileSync("tests/database/ingestion.sql", "utf8"));
+  sql(readFileSync("tests/database/refresh.sql", "utf8"));
   // Independent connections contend for the same previously absent identity.
   await Promise.all([
     concurrent(`begin; select * from merge_papers('[{"doi":"10.test/concurrent","title":"Concurrent","citations":12}]'); select pg_sleep(0.3); commit;`),
@@ -37,6 +38,9 @@ try {
   ]);
   const result = sql("select count(*) from papers where doi='10.test/concurrent' and citations=12 and hf_upvotes=9;").trim();
   if (result !== "1") throw new Error("Concurrent imports lost fields or created duplicates: " + result);
+  const claims = await Promise.all([concurrent("select reason from begin_refresh('cron');"), concurrent("select reason from begin_refresh('cron');")]);
+  if (claims.filter(r => r.trim() === "started").length !== 1 || claims.filter(r => r.trim() === "busy").length !== 1) throw new Error("Concurrent refresh claims overlapped");
+  console.log("Refresh database checks passed: overlap, cooldown, lease recovery, source history, permissions, concurrent claims.");
   console.log("Database ingestion checks passed: preservation, zero, DOI, mixed failures, permissions, concurrent imports.");
 } finally {
   docker(["dropdb", "-U", "postgres", database]);

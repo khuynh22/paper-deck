@@ -1,3 +1,4 @@
+import { sourceFetch, sourceWarning, sourceSuccess } from "./http";
 import { env } from "@/lib/env";
 import type { NormalizedPaper } from "@/lib/types";
 
@@ -67,13 +68,13 @@ export async function fetchS2Famous(
     const url =
       `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(q)}` +
       `&limit=${perQuery}&fields=${FIELDS}`;
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      // 429 without a key is expected — skip this query rather than fail the whole source.
-      if (res.status === 429) continue;
-      throw new Error(`semanticscholar ${res.status}`);
+    try {
+      const res = await sourceFetch(url, { headers });
+      all.push(...parseS2(await res.json()));
+      sourceSuccess();
+    } catch (error) {
+      sourceWarning(`Query ${queries.indexOf(q) + 1}`, error);
     }
-    all.push(...parseS2(await res.json()));
   }
   return all;
 }

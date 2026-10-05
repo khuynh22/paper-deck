@@ -1,3 +1,4 @@
+import { sourceFetch, sourceWarning, sourceSuccess } from "./http";
 import { env } from "@/lib/env";
 import type { NormalizedPaper } from "@/lib/types";
 import { parseS2 } from "./semanticscholar";
@@ -42,7 +43,7 @@ function recentYears(now: Date = new Date()): string {
  * by citations. The relevance `/paper/search` endpoint needs a text `query` that
  * biases results toward papers merely mentioning the venue; bulk filters purely on
  * venue, returning the whole (sorted) proceedings — we keep the top MAX_PER_VENUE.
- * No API key required (rate-limited; a 429 skips that venue). Each paper is stamped
+ * No API key required; exhausted retries are reported for each venue. Each paper is stamped
  * with a short venue badge label. Most also exist as arXiv preprints, so dedup
  * merges the badge onto rows already in the corpus.
  */
@@ -56,14 +57,14 @@ export async function fetchConferences(years: string = recentYears()): Promise<N
     const url =
       `https://api.semanticscholar.org/graph/v1/paper/search/bulk?venue=${encodeURIComponent(v.s2Venue)}` +
       `&year=${years}&sort=${encodeURIComponent("citationCount:desc")}&fields=${FIELDS}`;
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      if (res.status === 429) continue; // expected without a key — skip this venue
-      throw new Error(`conferences ${res.status}`);
+    try {
+      const res = await sourceFetch(url, { headers });
+      const top = parseS2(await res.json()).slice(0, MAX_PER_VENUE);
+      all.push(...labelConference(top, v.label));
+      sourceSuccess();
+    } catch (error) {
+      sourceWarning(v.label, error);
     }
-    // Bulk returns the full venue sorted by citations; keep the most-cited slice.
-    const top = parseS2(await res.json()).slice(0, MAX_PER_VENUE);
-    all.push(...labelConference(top, v.label));
   }
   return all;
 }
