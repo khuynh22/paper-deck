@@ -1,3 +1,4 @@
+import { ExportControls } from "@/components/ExportControls";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
@@ -31,6 +32,7 @@ export default async function NotesPage({
       <p className="mt-2 text-sm text-muted-foreground">
         Your private highlights and notes across papers.
       </p>
+      <ExportControls notes />
       <form
         action="/notes"
         method="get"

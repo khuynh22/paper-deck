@@ -1,3 +1,4 @@
+import { ExportControls } from "@/components/ExportControls";
 import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -29,7 +30,11 @@ export async function generateMetadata({
   return paperMetadata(paper, paperUrl(paper.id));
 }
 
-export default async function PaperDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PaperDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
 
   const paper = await loadPaper(id);
@@ -49,9 +54,14 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
 
   const pct = Math.round(Math.min(1, Math.max(0, progressPct)) * 100);
   const date = dateLine(paper.published_at);
-  const metaParts = [paper.arxiv_id ? `arXiv ${paper.arxiv_id}` : null, date].filter(Boolean);
+  const metaParts = [
+    paper.arxiv_id ? `arXiv ${paper.arxiv_id}` : null,
+    date,
+  ].filter(Boolean);
   const statsParts = [
-    paper.citations > 0 ? `${paper.citations.toLocaleString()} citations` : null,
+    paper.citations > 0
+      ? `${paper.citations.toLocaleString()} citations`
+      : null,
     paper.hf_upvotes > 0 ? `▲ ${paper.hf_upvotes} upvotes` : null,
     paper.pwc_stars > 0 ? `${fmtK(paper.pwc_stars)} repo stars` : null,
   ].filter(Boolean);
@@ -66,7 +76,9 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
       </Link>
 
       <p className="mt-5 font-mono text-xs tracking-wide text-faint">
-        <span className="text-accent">{paper.categories.slice(0, 3).join(" · ")}</span>
+        <span className="text-accent">
+          {paper.categories.slice(0, 3).join(" · ")}
+        </span>
         {metaParts.length > 0 && <>&nbsp;&nbsp;{metaParts.join(" · ")}</>}
       </p>
 
@@ -91,7 +103,11 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
         >
           {pct > 0 ? `Continue reading · ${pct}%` : "Read paper"}
         </Link>
-        <StarButton paperId={paper.id} initialStarred={starred} variant="detail" />
+        <StarButton
+          paperId={paper.id}
+          initialStarred={starred}
+          variant="detail"
+        />
         <ShareButton path={paperPath(paper.id)} title={paper.title} />
         {paper.source_url && (
           <a
@@ -115,6 +131,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
         )}
       </div>
 
+      <ExportControls paperId={paper.id} />
       {paper.abstract && (
         <section className="mt-9">
           <Kicker>Abstract</Kicker>
