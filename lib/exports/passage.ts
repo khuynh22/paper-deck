@@ -10,6 +10,7 @@ export function passageVerifier(html: string | null) {
       blocks.set(node.attribs["data-blk"], DomUtils.textContent(node));
   return (highlight: Highlight) =>
     Boolean(
+      !highlight.pdfAnchor &&
       blocks.has(highlight.blockAnchor) &&
       highlight.endOffset > highlight.startOffset &&
       blocks

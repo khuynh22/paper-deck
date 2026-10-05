@@ -4,7 +4,7 @@
 
 Migration `0014_my_notes.sql` uses security-invoker functions, existing highlight RLS and `auth.uid()`. Anonymous execution is revoked. Neither function accepts a user ID. Run migrations through the normal release process; this work does not apply hosted migrations.
 
-Open passage links carry a highlight ID. The reader uses only the signed-in user's highlights and paints a target only when its block, offsets and exact quote still agree. A verified mark is scrolled into view and focused. Missing, changed, deleted or unavailable-source passages show an explicit fallback with the saved quote and note when still owned. They do not resume to an unrelated saved position. PDF targets use the fallback until PDF annotations are implemented.
+Open passage links carry a highlight ID. The reader uses only the signed-in user's highlights and paints a target only when its block, offsets and exact quote still agree. A verified mark is scrolled into view and focused. Missing, changed, deleted or unavailable-source passages show an explicit fallback with the saved quote and note when still owned. They do not resume to an unrelated saved position. PDF targets validate their document identity, page and exact text before focusing the normalized geometry; unavailable or changed PDFs use the same fallback.
 
 Edits and deletes reuse the acknowledged reader actions, retain failed drafts, offer retry and invalidate notes/reader caches. A newer draft typed during an older save remains editable. Deleting a highlight also deletes its note, but never the paper or reading progress.
 

@@ -112,7 +112,7 @@ export function markdown(
             ? own
                 .map(
                   ({ highlight: h, passageValid }) =>
-                    `### Saved passage\n\n${literal(h.quote)}\n\n${h.note !== null ? `Note:\n\n${literal(h.note)}\n\n` : ""}${passageValid ? `[Open passage](${origin}/reader/${p.id}?highlight=${h.id})` : `Passage unavailable in the current source. [Open paper](${origin}/paper/${p.id})`}\n`,
+                    `### Saved passage\n\n${h.pdfAnchor ? `PDF page ${h.pdfAnchor.page}\n\n` : ""}${literal(h.quote)}\n\n${h.note !== null ? `Note:\n\n${literal(h.note)}\n\n` : ""}${passageValid ? `[Open passage](${origin}/reader/${p.id}?highlight=${h.id})` : `${h.pdfAnchor ? "Open the PDF reader to validate this saved passage." : "Passage unavailable in the current source."} [Open paper](${origin}/paper/${p.id})`}\n`,
                 )
                 .join("\n")
             : "No saved highlights or notes.\n")

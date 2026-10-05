@@ -13,7 +13,9 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 import { useProgressSave } from "@/components/useProgressSave";
 import { ReaderBar } from "@/components/ReaderBar";
 import { boundedPage, pageWindow, pdfTextMarkup } from "@/lib/reader/pdf";
-import type { ProgressRow } from "@/lib/types";
+import { PdfPageFrame } from "@/components/PdfPageAnnotations";
+import { HighlightFallback } from "@/components/HighlightFallback";
+import type { Highlight, ProgressRow } from "@/lib/types";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 type PdfDocument = Parameters<
@@ -24,16 +26,38 @@ const PDF_OPTIONS = { isEvalSupported: false };
 export function PdfReader({
   paperId,
   initialProgress,
+  initialHighlights = [],
+  requestedHighlightId,
 }: {
   paperId: string;
   initialProgress: ProgressRow | null;
+  initialHighlights?: Highlight[];
+  requestedHighlightId?: string;
 }) {
   const fileUrl = `/api/reader/${paperId}?pdf=1`,
     containerRef = useRef<HTMLDivElement>(null),
     toolbarRef = useRef<HTMLDivElement>(null),
     pdfRef = useRef<PdfDocument | null>(null),
     generation = useRef(0),
-    pageCount = useRef(0);
+    pageCount = useRef(0),
+    requestedPage = useRef(1);
+  const [highlights, setHighlights] = useState(initialHighlights),
+    [fingerprint, setFingerprint] = useState(""),
+    [lockedPage, setLockedPage] = useState<number | null>(null),
+    [missingTarget, setMissingTarget] = useState(false);
+  const onHighlightChange = useCallback(
+    (highlight: Highlight | null, id: string) =>
+      setHighlights((rows) =>
+        highlight
+          ? [...rows.filter((h) => h.id !== id), highlight]
+          : rows.filter((h) => h.id !== id),
+      ),
+    [],
+  );
+  const onTargetMissing = useCallback(() => setMissingTarget(true), []);
+  const onTextFailure = useCallback(() => {
+    if (requestedHighlightId) onTargetMissing();
+  }, [requestedHighlightId, onTargetMissing]);
   const [ratios, setRatios] = useState<number[]>([]),
     [width, setWidth] = useState(700),
     [zoom, setZoom] = useState(1),
@@ -62,6 +86,10 @@ export function PdfReader({
   const numPages = ratios.length,
     pageWidth = Math.max(100, width * zoom),
     windowPages = pageWindow(active, numPages);
+  const renderText = useCallback(
+    ({ str }: { str: string }) => pdfTextMarkup(str, searchTerm),
+    [searchTerm],
+  );
   const headerOffset = useCallback(
     () => Math.max(112, 106 + (toolbarRef.current?.offsetHeight ?? 46)),
     [],
@@ -155,13 +183,19 @@ export function PdfReader({
     if (!resumed.current) {
       resumed.current = true;
       const page = boundedPage(
-        Number(initialProgress?.blockAnchor) || 1,
+        requestedHighlightId
+          ? requestedPage.current
+          : Number(initialProgress?.blockAnchor) || 1,
         numPages,
       );
       const node = containerRef.current?.querySelector<HTMLElement>(
         `[data-page="${page}"]`,
       );
-      if (!initialProgress?.blockAnchor && initialProgress?.scrollPct) {
+      if (
+        !requestedHighlightId &&
+        !initialProgress?.blockAnchor &&
+        initialProgress?.scrollPct
+      ) {
         const max = document.documentElement.scrollHeight - window.innerHeight;
         window.scrollTo({
           top:
@@ -188,7 +222,13 @@ export function PdfReader({
         });
     }
     resizePosition.current = null;
-  }, [numPages, pageWidth, initialProgress, headerOffset]);
+  }, [
+    numPages,
+    pageWidth,
+    initialProgress,
+    headerOffset,
+    requestedHighlightId,
+  ]);
   useEffect(() => {
     const onScroll = () => {
       const page = currentPage();
@@ -209,6 +249,19 @@ export function PdfReader({
   async function onDocumentLoad(pdf: PdfDocument) {
     pdfRef.current = pdf;
     pageCount.current = pdf.numPages;
+    const identity = pdf.fingerprints[0] ?? "";
+    setFingerprint(identity);
+    if (requestedHighlightId) {
+      const target = highlights.find((h) => h.id === requestedHighlightId),
+        anchor = target?.pdfAnchor;
+      const valid = Boolean(
+        anchor &&
+        anchor.fingerprint === identity &&
+        anchor.page <= pdf.numPages,
+      );
+      requestedPage.current = valid ? anchor!.page : 1;
+      setMissingTarget(!valid);
+    }
     const token = ++generation.current;
     try {
       const sizes: number[] = [];
@@ -220,7 +273,9 @@ export function PdfReader({
       }
       setRatios(sizes);
       const resume = boundedPage(
-        Number(initialProgress?.blockAnchor) || 1,
+        requestedHighlightId
+          ? requestedPage.current
+          : Number(initialProgress?.blockAnchor) || 1,
         pdf.numPages,
       );
       setActive(resume);
@@ -299,6 +354,11 @@ export function PdfReader({
   if (error)
     return (
       <div role="alert" className="mx-auto max-w-md px-4 py-20 text-sm">
+        {requestedHighlightId && (
+          <HighlightFallback
+            highlight={highlights.find((h) => h.id === requestedHighlightId)}
+          />
+        )}
         Couldn&apos;t load the PDF in-app.{" "}
         <a
           className="text-accent underline"
@@ -313,6 +373,12 @@ export function PdfReader({
     );
   return (
     <>
+      {missingTarget && (
+        <HighlightFallback
+          floating
+          highlight={highlights.find((h) => h.id === requestedHighlightId)}
+        />
+      )}
       <div
         ref={toolbarRef}
         aria-label="PDF controls"
@@ -431,29 +497,35 @@ export function PdfReader({
             const n = index + 1,
               isRead = marked !== null && n <= marked;
             return (
-              <div
+              <PdfPageFrame
                 key={n}
-                data-page={n}
-                tabIndex={-1}
-                aria-label={`PDF page ${n}`}
-                className={`relative mx-auto mb-4 border ${isRead ? "border-[var(--read-accent)]" : "border-line"}`}
-                style={{ width: pageWidth + 2, height: pageWidth * ratio + 2 }}
+                page={n}
+                paperId={paperId}
+                fingerprint={fingerprint}
+                highlights={highlights.filter((h) => h.pdfAnchor?.page === n)}
+                onChange={onHighlightChange}
+                lockedPage={lockedPage}
+                onLock={setLockedPage}
+                requestedId={requestedHighlightId}
+                onTargetMissing={onTargetMissing}
+                ratio={ratio}
+                width={pageWidth}
+                isRead={isRead}
+                rendered={
+                  (n >= windowPages.first && n <= windowPages.last) ||
+                  lockedPage === n
+                }
               >
-                {isRead && (
-                  <span className="absolute right-2 top-2 z-10 rounded bg-accent px-1 text-xs text-white">
-                    read
-                  </span>
-                )}
-                {n >= windowPages.first && n <= windowPages.last ? (
+                {(n >= windowPages.first && n <= windowPages.last) ||
+                lockedPage === n ? (
                   <Page
                     pageNumber={n}
                     width={pageWidth}
                     renderTextLayer
                     renderAnnotationLayer
                     renderForms={false}
-                    customTextRenderer={({ str }) =>
-                      pdfTextMarkup(str, searchTerm)
-                    }
+                    onRenderTextLayerError={onTextFailure}
+                    customTextRenderer={renderText}
                     onGetTextSuccess={({ items }) => {
                       if (
                         !items.some((item) => "str" in item && item.str.trim())
@@ -473,7 +545,7 @@ export function PdfReader({
                     This page has no selectable text. Scanned pages require OCR.
                   </p>
                 )}
-              </div>
+              </PdfPageFrame>
             );
           })}
         </Document>
