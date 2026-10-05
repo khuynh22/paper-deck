@@ -28,6 +28,10 @@ jobs:
         run: pnpm test:e2e:setup
       - name: Desktop and mobile persistence
         run: pnpm test:e2e
+      - name: Database ranking regression and query plan
+        run: node scripts/test-ranking-db.mjs
+        env:
+          TEST_POSTGRES_CONTAINER: supabase_db_paper-deck-e2e
       - name: Failure traces and screenshots
         if: failure()
         uses: actions/upload-artifact@v7

@@ -1,42 +1,34 @@
 import { serverClient } from "@/lib/db/server";
 import type { FeedTab, PaperRow } from "@/lib/types";
 
-/**
- * Trending score: rewards community attention (HF upvotes, PwC stars) decayed by
- * recency so fresh-and-discussed papers rank above old-but-popular ones.
- */
-export function trendingScore(
-  p: { hf_upvotes: number; pwc_stars: number; published_at: string | null },
-  now: number,
-): number {
-  const ageDays = p.published_at ? (now - Date.parse(p.published_at)) / 86_400_000 : 3650;
-  const recency = Math.exp(-Math.max(ageDays, 0) / 14); // ~2-week decay
-  const attention = p.hf_upvotes * 3 + Math.log1p(p.pwc_stars) * 5;
-  return attention * (0.3 + recency);
-}
+export { trendingScore } from "./score";
 
 /** Fetch a feed view over the shared corpus. */
-export async function getFeed(tab: FeedTab, limit = 40): Promise<PaperRow[]> {
+export async function getFeed(tab: FeedTab, limit = 40, options: { asOf?: string; offset?: number } = {}): Promise<PaperRow[]> {
+  const offset = options.offset ?? 0;
+  const asOf = options.asOf ?? new Date().toISOString();
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isInteger(offset) || offset < 0 || offset > 100_000 || !Number.isFinite(Date.parse(asOf))) {
+    throw new RangeError("Invalid feed window");
+  }
   const db = await serverClient();
-  let q = db.from("papers").select("*").limit(limit);
+  if (tab === "trending") {
+    const { data, error } = await db.rpc("trending_papers", { as_of: asOf, page_limit: limit, page_offset: offset });
+    if (error) throw error;
+    return (data ?? []) as PaperRow[];
+  }
+  let q = db.from("papers").select("*").range(offset, offset + limit - 1);
 
   if (tab === "latest") {
     q = q.order("published_at", { ascending: false, nullsFirst: false });
   } else if (tab === "famous") {
     q = q.order("citations", { ascending: false });
-  } else {
-    // Pull a generous candidate set ordered by raw attention, then rerank by score.
-    q = q.order("hf_upvotes", { ascending: false }).order("pwc_stars", { ascending: false });
   }
+  q = q.order("id", { ascending: true });
 
   const { data, error } = await q;
   if (error) throw error;
   const rows = (data ?? []) as PaperRow[];
 
-  if (tab === "trending") {
-    const now = Date.now();
-    return [...rows].sort((a, b) => trendingScore(b, now) - trendingScore(a, now));
-  }
   return rows;
 }
 
