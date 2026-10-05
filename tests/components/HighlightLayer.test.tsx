@@ -274,6 +274,7 @@ test("Cancel after an authentication failure closes without trying to delete", a
   expect(actions.deleteHighlight).not.toHaveBeenCalled();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /^cancel$/i })).not.toBeInTheDocument();
+  expect(screen.getByRole("status", { name: "Highlight save" })).toBeEmptyDOMElement();
 
   selectText(container, 8, 18);
   expect(screen.getByRole("button", { name: /^highlight$/i })).toBeEnabled();

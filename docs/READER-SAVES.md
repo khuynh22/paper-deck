@@ -102,6 +102,7 @@ PASS: failed mark is visibly unsaved until retry is acknowledged
 PASS: acknowledged HTML progress persisted in local Supabase
 PASS: lost creation response + retry leaves exactly one highlight
 PASS: Cancel removes an uncertain creation and frees overlapping selection
+PASS: Cancel after auth failure closes without a delete request
 PASS: note failure retains draft; retry persists it
 PASS: reload and a second mobile browser context restore mark and note
 PASS: failed deletion retains highlight until retry succeeds

@@ -182,6 +182,25 @@ async function verify() {
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   console.log("PASS: Cancel removes an uncertain creation and frees overlapping selection");
 
+  await context.clearCookies();
+  let actionPosts = 0;
+  const countAction = (request) => {
+    if (request.method() === "POST" && request.url().includes(`/reader/${paperId}`)) {
+      actionPosts += 1;
+    }
+  };
+  page.on("request", countAction);
+  await selectText(page, 2, 0, 5);
+  await page.getByRole("button", { name: "Highlight", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: /sign in/i }).waitFor();
+  const postsBeforeCancel = actionPosts;
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Highlight", exact: true }).waitFor({ state: "hidden" });
+  assert.equal(actionPosts, postsBeforeCancel, "Cancel after auth failure must not request a delete");
+  page.off("request", countAction);
+  await context.addCookies(authCookies);
+  console.log("PASS: Cancel after auth failure closes without a delete request");
+
   await page.locator("mark.pd-highlight").click();
   await page.getByRole("textbox", { name: "Note" }).fill("Persistent research note");
   const stopFailingNote = await failNextAction(page, { delayMs: 700 });
