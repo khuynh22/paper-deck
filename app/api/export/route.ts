@@ -85,7 +85,7 @@ export async function POST(request: Request) {
           let query = db
             .from("highlights")
             .select(
-              "id,paper_id,block_anchor,start_offset,end_offset,quote,note",
+              "id,paper_id,block_anchor,start_offset,end_offset,quote,note,pdf_anchor",
             )
             .eq("user_id", user.id)
             .order("id")

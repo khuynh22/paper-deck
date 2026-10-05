@@ -102,6 +102,7 @@ export function HighlightLayer({
     clearHighlights(root);
     const byBlock = new Map<string, DecorateTarget[]>();
     for (const h of highlights) {
+      if (h.pdfAnchor) continue;
       const target: DecorateTarget = {
         id: h.id,
         startOffset: h.startOffset,

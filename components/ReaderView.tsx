@@ -101,14 +101,13 @@ export function ReaderView({
 
   if (payload.kind === "pdf") {
     return (
-      <>
-        {fallback}
-        <PdfReader
-          key={paperId}
-          paperId={paperId}
-          initialProgress={requestedHighlightId ? null : initialProgress}
-        />
-      </>
+      <PdfReader
+        key={paperId}
+        paperId={paperId}
+        initialProgress={initialProgress}
+        initialHighlights={initialHighlights}
+        requestedHighlightId={requestedHighlightId}
+      />
     );
   }
 

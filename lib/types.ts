@@ -71,8 +71,15 @@ export interface ProgressRow {
   status: ReadingStatus;
 }
 
+export interface PdfAnchor {
+  page: number;
+  fingerprint: string;
+  rects: { x: number; y: number; width: number; height: number }[];
+}
+
 /** A user's text highlight (+ optional note) within a paper's HTML reader. */
 export interface Highlight {
+  pdfAnchor?: PdfAnchor;
   id: string;
   paperId: string;
   blockAnchor: string;

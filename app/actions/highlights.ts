@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { samePdfAnchor } from "@/lib/reader/pdfAnchor";
 import { z } from "zod";
 import { withMutation } from "@/lib/db/mutation";
 import { mutationFailure, type MutationResult } from "@/lib/mutationResult";
@@ -22,7 +23,7 @@ function invalidateNotes() {
 }
 
 const HL_COLS =
-  "id, paper_id, block_anchor, start_offset, end_offset, quote, note";
+  "id, paper_id, block_anchor, start_offset, end_offset, quote, note, pdf_anchor";
 
 /** All of the current user's highlights for a paper (oldest first). Empty when signed out. */
 export async function loadHighlights(paperId: string): Promise<Highlight[]> {
@@ -88,7 +89,8 @@ export async function createHighlight(
       h.blockAnchor !== parsed.data.blockAnchor ||
       h.startOffset !== parsed.data.startOffset ||
       h.endOffset !== parsed.data.endOffset ||
-      h.quote !== parsed.data.quote
+      h.quote !== parsed.data.quote ||
+      !samePdfAnchor(h.pdfAnchor, parsed.data.pdfAnchor)
     )
       return mutationFailure();
     invalidateNotes();

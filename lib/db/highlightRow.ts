@@ -1,11 +1,13 @@
 import { z } from "zod";
-import type { Highlight } from "@/lib/types";
+import { pdfAnchorSchema } from "@/lib/reader/pdfAnchor";
+import type { PdfAnchor, Highlight } from "@/lib/types";
 
 export const NOTE_MAX = 2000;
 export const QUOTE_MAX = 1000;
 
 /** A row of the `highlights` table as read back from Postgres. */
 export interface HighlightRow {
+  pdf_anchor?: PdfAnchor | null;
   id: string;
   paper_id: string;
   block_anchor: string;
@@ -18,6 +20,7 @@ export interface HighlightRow {
 /** The validated payload a client sends to create a highlight. */
 export const highlightInputSchema = z
   .object({
+    pdfAnchor: pdfAnchorSchema.optional(),
     paperId: z.string().min(1),
     blockAnchor: z.string().min(1),
     startOffset: z.number().int().nonnegative(),
@@ -25,6 +28,13 @@ export const highlightInputSchema = z
     quote: z.string().min(1).max(QUOTE_MAX),
     note: z.string().max(NOTE_MAX).nullable().optional(),
   })
+  .refine(
+    (v) =>
+      !v.pdfAnchor ||
+      (v.blockAnchor === `pdf:${v.pdfAnchor.page}` &&
+        v.endOffset - v.startOffset === v.quote.length),
+    { message: "Invalid PDF anchor" },
+  )
   .refine((v) => v.endOffset > v.startOffset, {
     message: "endOffset must be greater than startOffset",
     path: ["endOffset"],
@@ -35,6 +45,7 @@ export type HighlightInput = z.infer<typeof highlightInputSchema>;
 /** Map a DB row to the app-facing Highlight shape. */
 export function rowToHighlight(row: HighlightRow): Highlight {
   return {
+    ...(row.pdf_anchor ? { pdfAnchor: row.pdf_anchor } : {}),
     id: row.id,
     paperId: row.paper_id,
     blockAnchor: row.block_anchor,
@@ -48,6 +59,7 @@ export function rowToHighlight(row: HighlightRow): Highlight {
 /** Build the insert payload for a new highlight row. */
 export function highlightInsert(userId: string, input: HighlightInput) {
   return {
+    ...(input.pdfAnchor ? { pdf_anchor: input.pdfAnchor } : {}),
     user_id: userId,
     paper_id: input.paperId,
     block_anchor: input.blockAnchor,
