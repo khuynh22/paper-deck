@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
-import { saveProgress } from "@/app/actions/progress";
+import { useProgressSave } from "@/components/useProgressSave";
 import { ReaderBar } from "@/components/ReaderBar";
 import type { ProgressRow } from "@/lib/types";
 
@@ -27,9 +27,8 @@ export function PdfReader({
     initialProgress?.markedAnchor ? Number(initialProgress.markedAnchor) : null,
   );
   const [progressPct, setProgressPct] = useState(initialProgress?.scrollPct ?? 0);
-  const [hint, setHint] = useState<string | null>(null);
+  const { state: saveState, enqueue, retry } = useProgressSave(paperId);
   const [error, setError] = useState(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     function measure() {
@@ -59,29 +58,27 @@ export function PdfReader({
   }, []);
 
   const persist = useCallback(
-    (extra: Partial<{ markedAnchor: string | null; status: "reading" | "done" }> = {}) => {
+    (extra: Partial<{ markedAnchor: string | null; status: "reading" | "done" }> = {}, immediate = true) => {
       const pct = currentScrollPct();
       setProgressPct(pct);
-      saveProgress(paperId, {
+      enqueue({
         scrollPct: pct,
         blockAnchor: String(currentPage()),
         readerKind: "pdf",
         ...extra,
-      }).catch(() => {});
+      }, immediate);
     },
-    [paperId, currentPage, currentScrollPct],
+    [enqueue, currentPage, currentScrollPct],
   );
 
   useEffect(() => {
     function onScroll() {
       setProgressPct(currentScrollPct());
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => persist(), 600);
+      persist({}, false);
     }
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, [currentScrollPct, persist]);
 
@@ -109,8 +106,6 @@ export function PdfReader({
     setMarked(page);
     const done = numPages > 0 && page >= numPages;
     persist({ markedAnchor: String(page), status: done ? "done" : "reading" });
-    setHint("Marked ✓");
-    setTimeout(() => setHint(null), 1500);
   }
 
   function onClear() {
@@ -171,7 +166,8 @@ export function PdfReader({
         onMark={onMark}
         onClear={onClear}
         progressPct={progressPct}
-        hint={hint}
+        saveState={saveState}
+        onRetry={retry}
       />
     </>
   );

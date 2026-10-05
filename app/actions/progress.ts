@@ -1,5 +1,7 @@
 "use server";
 
+import { withMutation } from "@/lib/db/mutation";
+import { mutationFailure, type MutationResult } from "@/lib/mutationResult";
 import { revalidatePath } from "next/cache";
 import { serverClient } from "@/lib/db/server";
 import { currentUser } from "@/lib/auth";
@@ -33,12 +35,15 @@ export async function loadProgress(paperId: string): Promise<ProgressRow | null>
  * Persist a partial progress update (debounced by the caller). Only the provided
  * fields are written; unspecified fields keep their existing values on conflict.
  */
-export async function saveProgress(paperId: string, update: ProgressUpdate): Promise<void> {
-  const user = await currentUser();
-  if (!user) return;
-  const db = await serverClient();
-  const row = buildProgressRow(user.id, paperId, update, new Date().toISOString());
-  await db.from("reading_progress").upsert(row, { onConflict: "user_id,paper_id" });
+export async function saveProgress(paperId: string, update: ProgressUpdate): Promise<MutationResult> {
+  return withMutation(async (db, userId) => {
+    const row = buildProgressRow(userId, paperId, update, new Date().toISOString());
+    const { data, error } = await db.from("reading_progress")
+      .upsert(row, { onConflict: "user_id,paper_id" })
+      .select("paper_id").single();
+    if (error || !data) return mutationFailure(error);
+    return { ok: true, data: undefined };
+  });
 }
 
 /** Remove a single paper from the user's reading history ("Continue reading" shelf). */
