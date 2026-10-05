@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { aggregate } from "@/lib/sources";
-import { upsertPapers } from "@/lib/corpus/upsert";
+import { runRefresh } from "@/lib/corpus/refresh";
 import { env } from "@/lib/env";
 
 export const runtime = "nodejs";
@@ -19,13 +18,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
-    const { results, errors } = await aggregate();
-    const ingestion = await upsertPapers(results);
-    return NextResponse.json({ upserted: ingestion.inserted + ingestion.updated, ingestion, errors },
-      { status: ingestion.failed ? 500 : 200 });
-  } catch (e) {
+    const result = await runRefresh("cron");
+    const status = result.status === "healthy" ? 200 : result.status === "busy" || result.status === "cooldown" ? 409 : 503;
+    return NextResponse.json(result, { status });
+  } catch {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
+      { error: "Refresh could not be confirmed. Check owner source health." },
       { status: 500 },
     );
   }

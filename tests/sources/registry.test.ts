@@ -36,5 +36,5 @@ test("a throwing source is isolated and reported, others still return", async ()
     },
   ]);
   expect(results).toHaveLength(1);
-  expect(errors).toEqual([{ id: "semanticscholar", error: "boom" }]);
+  expect(errors).toEqual([{ id: "semanticscholar", error: "Source failed" }]);
 });

@@ -1,3 +1,4 @@
+import { sourceFetch } from "./http";
 import { env } from "@/lib/env";
 import type { NormalizedPaper } from "@/lib/types";
 
@@ -62,7 +63,7 @@ export async function fetchScholar(query = "machine learning"): Promise<Normaliz
   const url =
     `https://serpapi.com/search.json?engine=google_scholar` +
     `&q=${encodeURIComponent(query)}&api_key=${key}`;
-  const res = await fetch(url, { headers: { "User-Agent": "PaperDeck/1.0 (research reader)" } });
+  const res = await sourceFetch(url, { headers: { "User-Agent": "PaperDeck/1.0 (research reader)" } });
   if (!res.ok) throw new Error(`serpapi ${res.status}`);
   return parseSerpScholar(await res.json());
 }
