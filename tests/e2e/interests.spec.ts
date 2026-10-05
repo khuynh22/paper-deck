@@ -77,7 +77,13 @@ test("saved searches return new deduplicated private matches and preserve librar
     await expect(match).toHaveCount(1);
     await expect(match).toContainText("New match");
     await expect(match).toContainText("Follow author, Saved topic search");
-    await match.getByText("Why this paper?", { exact: true }).click();
+    const explanation = match.getByText("Why this paper?", { exact: true });
+    // Keep the target clear of the fixed mobile tab bar instead of relying on
+    // Chromium's nearest-edge automatic scroll position.
+    await explanation.evaluate((element) =>
+      element.scrollIntoView({ block: "center", behavior: "instant" }),
+    );
+    await explanation.click();
     await expect(match).toContainText("Author name: " + token);
     await page.screenshot({
       path: `.e2e/interests-${test.info().project.name}.png`,
@@ -197,14 +203,12 @@ test("interest updates page through all tied matches without duplicates", async 
   const inserted = await admin.from("papers").insert(papers);
   if (inserted.error) throw inserted.error;
   try {
-    const interest = await admin
-      .from("research_interests")
-      .insert({
-        id: randomUUID(),
-        user_id: seed.userId,
-        name: "Paged updates",
-        query_text: token,
-      });
+    const interest = await admin.from("research_interests").insert({
+      id: randomUUID(),
+      user_id: seed.userId,
+      name: "Paged updates",
+      query_text: token,
+    });
     if (interest.error) throw interest.error;
     await page.goto("/updates");
     await expect(page).toHaveURL(/asof=/);
