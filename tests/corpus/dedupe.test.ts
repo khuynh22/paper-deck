@@ -56,6 +56,12 @@ test("distinct papers are preserved", () => {
   expect(dedupe([base({ arxivId: "a" }), base({ arxivId: "b" })])).toHaveLength(2);
 });
 
+test("duplicate zero signals remain supplied while absent signals stay absent", () => {
+  const [paper] = dedupe([base({ arxivId: "a", signals: { citations: 0 } }), base({ arxivId: "a" })]);
+  expect(paper.signals.citations).toBe(0);
+  expect(paper.signals.hfUpvotes).toBeUndefined();
+});
+
 test("an arxiv row inherits a conference venue when merged", () => {
   const merged = dedupe([
     base({ arxivId: "2401.9" }),

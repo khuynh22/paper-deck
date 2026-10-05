@@ -6,7 +6,10 @@ export type SourceId =
   | "googlescholar"
   | "conferences";
 
-/** The common shape every source adapter normalizes its results into. */
+/** Adapter metadata: null/empty means unknown, not a request to clear stored data.
+ * Supplied non-empty values replace existing values on import; signals preserve
+ * explicit zero. Imports cannot clear metadata; that requires a separate edit.
+ */
 export interface NormalizedPaper {
   arxivId: string | null;
   doi: string | null;
@@ -25,6 +28,7 @@ export interface NormalizedPaper {
 }
 
 export interface PaperSignals {
+  /** Undefined means not supplied by this source; zero is an observed value. */
   hfUpvotes?: number;
   pwcStars?: number;
   citations?: number;

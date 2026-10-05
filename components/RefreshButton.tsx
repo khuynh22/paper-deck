@@ -14,7 +14,8 @@ export function RefreshButton() {
       try {
         const r = await triggerRefresh();
         const errs = r.errors.length ? ` · ${r.errors.length} source error(s)` : "";
-        setMsg(`+${r.upserted} papers${errs}`);
+        const c = r.ingestion;
+        setMsg(`${c.inserted} added, ${c.updated} updated, ${c.skipped} unchanged or skipped, ${c.failed} failed${errs}`);
       } catch {
         setMsg("Refresh failed");
       }

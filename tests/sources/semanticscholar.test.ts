@@ -1,4 +1,9 @@
 import { test, expect } from "vitest";
+
+test("distinguishes absent signals from explicitly supplied zero", () => {
+  expect(parseS2({ data: [{ title: "T" }] })[0].signals.citations).toBeUndefined();
+  expect(parseS2({ data: [{ title: "T", citationCount: 0 }] })[0].signals.citations).toBe(0);
+});
 import { readFileSync } from "node:fs";
 import { parseS2 } from "@/lib/sources/semanticscholar";
 

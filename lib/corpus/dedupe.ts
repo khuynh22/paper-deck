@@ -8,8 +8,9 @@ export function dedupeKey(p: NormalizedPaper): string {
 }
 
 function maxSignal(a: number | undefined, b: number | undefined): number | undefined {
-  const v = Math.max(a ?? 0, b ?? 0);
-  return v > 0 ? v : undefined;
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return Math.max(a, b);
 }
 
 /**

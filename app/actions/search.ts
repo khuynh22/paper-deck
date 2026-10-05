@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth";
 import { searchArxiv } from "@/lib/sources/arxiv";
-import { upsertPapers } from "@/lib/corpus/upsert";
+import { upsertPapers, type IngestionResult } from "@/lib/corpus/upsert";
 
 export interface ArxivSearchResult {
-  /** How many arXiv matches were merged into the corpus. */
+  /** Newly inserted papers; detailed outcomes also report updates/failures. */
   added: number;
+  ingestion?: IngestionResult;
   error: string | null;
 }
 
@@ -25,9 +26,9 @@ export async function searchArxivAction(query: string): Promise<ArxivSearchResul
 
   try {
     const found = await searchArxiv(q);
-    const added = await upsertPapers(found);
+    const ingestion = await upsertPapers(found);
     revalidatePath("/search");
-    return { added, error: null };
+    return { added: ingestion.inserted, ingestion, error: null };
   } catch (e) {
     return { added: 0, error: e instanceof Error ? e.message : "arXiv search failed" };
   }
