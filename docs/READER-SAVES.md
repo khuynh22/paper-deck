@@ -44,11 +44,12 @@ failures explain what needs to change. Database details are not exposed.
   Web Crypto random bytes, which are available on plain HTTP LAN origins.
 - There is a narrow race after a lost response: an insert still running on the
   server could commit after Cancel's delete completes. In that case the
-  highlight can reappear on reload, and a later overlapping selection may be
-  rejected. The current delete-by-ID protocol cannot guarantee cancellation
-  of an in-flight insert; durable cancellation would require server-side
-  tombstones or equivalent ordering. Retry the original selection instead of
-  Cancel when persistence is uncertain and avoiding this race matters.
+  highlight can reappear on reload. Before that reload, an overlapping
+  selection can be saved alongside it, producing nested marks after reload.
+  The current delete-by-ID protocol cannot guarantee cancellation of an
+  in-flight insert; durable cancellation would require server-side tombstones
+  or equivalent ordering. Retry the original selection instead of Cancel when
+  persistence is uncertain and avoiding this race matters.
 
 ## Navigation and lifecycle
 

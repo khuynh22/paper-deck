@@ -45,10 +45,12 @@ async function selectText(page, block, start, end) {
   }, { block, start, end });
 }
 
-async function failNextAction(page, { commit = false, delayMs = 0 } = {}) {
+async function failNextAction(page, { commit = false, delayMs = 0, bodyIncludes } = {}) {
   let intercepted = false;
   const handler = async (route) => {
-    if (intercepted || route.request().method() !== "POST") {
+    const request = route.request();
+    if (intercepted || request.method() !== "POST" ||
+        (bodyIncludes && !request.postData()?.includes(bodyIncludes))) {
       await route.continue();
       return;
     }
@@ -139,7 +141,8 @@ async function verify() {
 
   await page.goto(`${baseUrl}/reader/${paperId}`);
   await page.locator(".paper-html").waitFor();
-  const stopFailingMark = await failNextAction(page);
+  // A resumed scroll can save in the background. Fail only the explicit Mark.
+  const stopFailingMark = await failNextAction(page, { bodyIncludes: '"markedPct"' });
   await page.getByRole("button", { name: "I finished here" }).click();
   await page.getByRole("alert").filter({ hasText: /Couldn’t save/ }).waitFor();
   assert.equal(await page.locator('[data-testid="read-mark"]').getAttribute("data-save-state"), "unsaved");
