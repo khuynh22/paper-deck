@@ -17,12 +17,14 @@ import { newHighlightId } from "@/lib/reader/highlightId";
 import type { SaveState } from "@/lib/reader/progressSaver";
 import { NOTE_MAX } from "@/lib/db/highlightRow";
 import { Button } from "@/components/ui";
+import { readerViewportTop } from "@/lib/reader/viewport";
 import type { Highlight } from "@/lib/types";
 
 type Pending = {
   requestId: string;
   x: number;
   y: number;
+  below: boolean;
   blockAnchor: string;
   start: number;
   end: number;
@@ -137,12 +139,14 @@ export function HighlightLayer({
       const rect =
         typeof range.getBoundingClientRect === "function"
           ? range.getBoundingClientRect()
-          : { left: 0, top: 0, width: 0 };
+          : { left: 0, top: 0, bottom: 0, width: 0 };
+      const below = rect.top < readerViewportTop() + 96;
       setSaveState({ status: "idle" });
       setPending({
         requestId: newHighlightId(),
         x: rect.left + rect.width / 2,
-        y: rect.top,
+        y: below ? rect.bottom + 8 : rect.top,
+        below,
         blockAnchor: block.getAttribute("data-blk") ?? "",
         start: offsets.start,
         end: offsets.end,
@@ -277,7 +281,7 @@ export function HighlightLayer({
       {pending && (
         <div
           data-highlight-controls
-          className="pd-enter fixed z-30 -translate-x-1/2 -translate-y-full pb-2"
+          className={`pd-enter fixed z-30 -translate-x-1/2 pb-2 ${pending.below ? "" : "-translate-y-full"}`}
           style={{ left: pending.x, top: pending.y }}
         >
           <Button

@@ -27,7 +27,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
 
   return (
     <div>
-      <div className="sticky top-[58px] z-10 border-b border-hairline bg-background/90 px-4 py-2.5 backdrop-blur-md sm:px-6">
+      <div data-reader-header className="sticky top-[58px] z-30 border-b border-line bg-background px-4 py-2.5 sm:px-6">
         <div className="mx-auto flex max-w-3xl items-center gap-3">
           <Link
             href={`/paper/${id}`}

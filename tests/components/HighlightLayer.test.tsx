@@ -93,6 +93,27 @@ test("selecting text shows the Highlight button; clicking it creates and paints 
   expect(container.querySelector('mark.pd-highlight[data-hl-id="h2"]')).not.toBeNull();
 });
 
+test("selection toolbar opens below text close to the sticky reader header", () => {
+  const header = document.createElement("div");
+  header.setAttribute("data-reader-header", "");
+  header.getBoundingClientRect = () => ({ bottom: 116 } as DOMRect);
+  document.body.appendChild(header);
+  Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({ left: 200, top: 130, bottom: 145, width: 60 }),
+  });
+  try {
+    const { container } = render(<Harness initial={[]} />);
+    selectText(container, 10, 16);
+    const controls = container.querySelector<HTMLElement>("[data-highlight-controls]")!;
+    expect(controls.style.top).toBe("153px");
+    expect(controls.className).not.toContain("-translate-y-full");
+  } finally {
+    Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
+    header.remove();
+  }
+});
+
 test("clicking an existing mark opens the note editor; saving calls updateHighlightNote", async () => {
   const { container } = render(
     <Harness

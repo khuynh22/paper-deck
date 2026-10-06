@@ -4,12 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useProgressSave } from "@/components/useProgressSave";
 import { resolveResumeTarget } from "@/lib/reader/anchor";
 import { readDepthFraction, readBoundaryFraction, isComplete } from "@/lib/reader/readDepth";
+import { readerViewportTop, scrollTopForElement } from "@/lib/reader/viewport";
 import { ReaderBar } from "@/components/ReaderBar";
 import { HighlightLayer } from "@/components/HighlightLayer";
 import type { ProgressRow, Highlight } from "@/lib/types";
 import type { ProgressUpdate } from "@/lib/db/progressRow";
-
-const HEADER_OFFSET = 72; // sticky header height-ish
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
@@ -35,7 +34,7 @@ export function HtmlReader({
     if (update.markedPct !== undefined) setAcknowledgedMarkPct(clamp01(update.markedPct));
   }, []);
   const { state: saveState, explicitUnsaved, enqueue, retry } = useProgressSave(paperId, onAcknowledged);
-  // Viewport-bottom fraction, written on scroll so the shelf "% read" is unchanged.
+  // Viewport-bottom read depth remains separate from the saved scroll position.
   const readPctRef = useRef(clamp01(initialProgress?.readPct ?? 0));
   const scrollAnchorRef = useRef<string | null>(initialProgress?.blockAnchor ?? null);
   const lastAnchorMeasureRef = useRef(-Infinity);
@@ -55,9 +54,10 @@ export function HtmlReader({
     const el = containerRef.current;
     if (!el) return null;
     const nodes = Array.from(el.querySelectorAll<HTMLElement>("[data-blk]"));
+    const top = readerViewportTop() + 2;
     let current: string | null = null;
     for (const node of nodes) {
-      if (node.getBoundingClientRect().top - HEADER_OFFSET <= 1) {
+      if (node.getBoundingClientRect().top <= top) {
         current = node.dataset.blk as string;
       } else break;
     }
@@ -86,27 +86,63 @@ export function HtmlReader({
   // Resume to the saved position once the HTML mounts.
   useEffect(() => {
     if (!initialProgress) return;
+    const content = containerRef.current;
+    if (!content) return;
+    const readerPath = window.location.pathname;
     const target = resolveResumeTarget(
       { blockAnchor: initialProgress.blockAnchor, scrollPct: initialProgress.scrollPct },
       orderedAnchors(),
     );
-    requestAnimationFrame(() => {
+    let active = true;
+    let frame: number | null = null;
+    const resume = () => {
+      if (!active || window.location.pathname !== readerPath || !content.isConnected) return;
       if (target.type === "anchor") {
-        const node = containerRef.current?.querySelector<HTMLElement>(
+        const node = content.querySelector<HTMLElement>(
           `[data-blk="${target.value}"]`,
         );
-        if (node) window.scrollTo({ top: node.offsetTop - HEADER_OFFSET });
+        if (node) window.scrollTo({ top: scrollTopForElement(node) });
       } else {
         const max = document.documentElement.scrollHeight - window.innerHeight;
         window.scrollTo({ top: target.value * Math.max(0, max) });
       }
-    });
+    };
+    const schedule = () => {
+      if (!active) return;
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => { frame = null; resume(); });
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedule);
+    observer?.observe(content);
+    const stop = () => {
+      if (!active) return;
+      active = false;
+      observer?.disconnect();
+      if (frame !== null) cancelAnimationFrame(frame);
+      clearTimeout(timeout);
+      window.removeEventListener("wheel", stop);
+      window.removeEventListener("touchstart", stop);
+      window.removeEventListener("pointerdown", stop);
+      window.removeEventListener("keydown", stop);
+    };
+    // Fonts and figures may change the article height after mount. Keep the
+    // saved anchor aligned until the reader starts interacting or layout settles.
+    const timeout = setTimeout(stop, 10000);
+    window.addEventListener("wheel", stop, { passive: true });
+    window.addEventListener("touchstart", stop, { passive: true });
+    window.addEventListener("pointerdown", stop);
+    window.addEventListener("keydown", stop);
+    schedule();
+    return stop;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Track scroll position (resume + the shelf's read_pct) and debounce saves.
+  // Track scroll position and read depth, then debounce saves.
   useEffect(() => {
+    const readerPath = window.location.pathname;
+    const isCurrentReader = () => window.location.pathname === readerPath && Boolean(containerRef.current?.isConnected);
     function onScroll() {
+      if (!isCurrentReader()) return;
       const pct = currentScrollPct();
       setProgressPct(pct);
       readPctRef.current = readDepthFraction(
@@ -125,6 +161,7 @@ export function HtmlReader({
       } else if (trailingAnchorRef.current === null) {
         trailingAnchorRef.current = setTimeout(() => {
           trailingAnchorRef.current = null;
+          if (!isCurrentReader()) return;
           scrollAnchorRef.current = topBlock();
           lastAnchorMeasureRef.current = Date.now();
           enqueue({ scrollPct: currentScrollPct(), blockAnchor: scrollAnchorRef.current,

@@ -81,6 +81,89 @@ test("renders the paper HTML content", () => {
   expect(screen.getByText("Gamma")).toBeInTheDocument();
 });
 
+test("resumes an anchored block below the sticky headers using its document position", () => {
+  let frame!: FrameRequestCallback;
+  const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    frame = callback;
+    return 1;
+  });
+  const header = document.createElement("div");
+  header.setAttribute("data-reader-header", "");
+  header.getBoundingClientRect = () => ({ bottom: 104 }) as DOMRect;
+  document.body.append(header);
+  try {
+    setGeometry(700, 800, 10000);
+    const { container } = renderReader(PROGRESS({ blockAnchor: "1", scrollPct: 0.7 }));
+    const block = container.querySelector<HTMLElement>('[data-blk="1"]')!;
+    Object.defineProperty(block, "offsetTop", { value: 10 });
+    block.getBoundingClientRect = () => ({ top: 300 }) as DOMRect;
+    act(() => frame(0));
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 884 });
+  } finally {
+    header.remove();
+    raf.mockRestore();
+  }
+});
+
+test("re-aligns the saved block if the article grows after initial resume", () => {
+  const frames: FrameRequestCallback[] = [];
+  const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    frames.push(callback);
+    return frames.length;
+  });
+  let resized: (() => void) | undefined;
+  const originalObserver = globalThis.ResizeObserver;
+  globalThis.ResizeObserver = class {
+    constructor(callback: ResizeObserverCallback) { resized = () => callback([], this); }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as typeof ResizeObserver;
+  const header = document.createElement("div");
+  header.setAttribute("data-reader-header", "");
+  header.getBoundingClientRect = () => ({ bottom: 104 }) as DOMRect;
+  document.body.append(header);
+  try {
+    setGeometry(700, 800, 10000);
+    const { container } = renderReader(PROGRESS({ blockAnchor: "1", scrollPct: 0.7 }));
+    const block = container.querySelector<HTMLElement>('[data-blk="1"]')!;
+    let blockTop = 300;
+    block.getBoundingClientRect = () => ({ top: blockTop }) as DOMRect;
+    act(() => frames.shift()?.(0));
+    blockTop = 600;
+    act(() => resized?.());
+    act(() => frames.shift()?.(0));
+    expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 1184 });
+    expect(window.scrollTo).toHaveBeenCalledTimes(2);
+  } finally {
+    header.remove();
+    raf.mockRestore();
+    globalThis.ResizeObserver = originalObserver;
+  }
+});
+
+test("a resumed block remains the saved anchor after subpixel scroll rounding", async () => {
+  vi.useFakeTimers();
+  const header = document.createElement("div");
+  header.setAttribute("data-reader-header", "");
+  header.getBoundingClientRect = () => ({ bottom: 104 }) as DOMRect;
+  document.body.append(header);
+  try {
+    const { container } = renderReader(null);
+    const blocks = [...container.querySelectorAll<HTMLElement>("[data-blk]")];
+    blocks[0].getBoundingClientRect = () => ({ top: -100 }) as DOMRect;
+    blocks[1].getBoundingClientRect = () => ({ top: 116.8 }) as DOMRect;
+    blocks[2].getBoundingClientRect = () => ({ top: 300 }) as DOMRect;
+    setGeometry(700, 800, 10000);
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(650));
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ blockAnchor: "1" });
+  } finally {
+    header.remove();
+    vi.useRealTimers();
+  }
+});
+
 test("paints an initial highlight passed to the reader", () => {
   const { container } = render(
     <HtmlReader
@@ -196,6 +279,22 @@ test("unmount flushes the latest scroll snapshot instead of cancelling the debou
   fireEvent.scroll(window);
   await act(async () => unmount());
   expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ scrollPct: 0.375 });
+});
+
+test("a destination page scroll during navigation cannot overwrite the saved reader position", async () => {
+  const oldPath = window.location.pathname;
+  try {
+    setGeometry(500, 800, 1800);
+    const { unmount } = renderReader(null);
+    fireEvent.scroll(window);
+    window.history.pushState({}, "", "/paper/p1");
+    setGeometry(0, 800, 800);
+    fireEvent.scroll(window);
+    await act(async () => unmount());
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ scrollPct: 0.5 });
+  } finally {
+    window.history.replaceState({}, "", oldPath);
+  }
 });
 
 test("routine scroll autosaves stay quiet and do not warn on navigation", () => {

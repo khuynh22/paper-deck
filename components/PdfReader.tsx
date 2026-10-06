@@ -4,14 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { useProgressSave } from "@/components/useProgressSave";
 import { ReaderBar } from "@/components/ReaderBar";
+import { readerViewportTop, scrollTopForElement } from "@/lib/reader/viewport";
 import type { ProgressRow } from "@/lib/types";
 import type { ProgressUpdate } from "@/lib/db/progressRow";
 
 // Load the pdf.js worker from a CDN, pinned to the exact version react-pdf ships
 // (worker and API versions must match). Avoids bundler worker-resolution issues.
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-
-const HEADER_OFFSET = 72;
 
 export function PdfReader({
   paperId,
@@ -54,9 +53,10 @@ export function PdfReader({
     const el = containerRef.current;
     if (!el) return 1;
     const pages = Array.from(el.querySelectorAll<HTMLElement>("[data-page]"));
+    const top = readerViewportTop() + 2;
     let current = 1;
     for (const p of pages) {
-      if (p.getBoundingClientRect().top - HEADER_OFFSET <= 1) current = Number(p.dataset.page);
+      if (p.getBoundingClientRect().top <= top) current = Number(p.dataset.page);
       else break;
     }
     return current;
@@ -82,7 +82,10 @@ export function PdfReader({
   );
 
   useEffect(() => {
+    const readerPath = window.location.pathname;
+    const isCurrentReader = () => window.location.pathname === readerPath && Boolean(containerRef.current?.isConnected);
     function onScroll() {
+      if (!isCurrentReader()) return;
       const pct = currentScrollPct();
       setProgressPct(pct);
       const now = Date.now();
@@ -94,6 +97,7 @@ export function PdfReader({
       } else if (trailingPageRef.current === null) {
         trailingPageRef.current = setTimeout(() => {
           trailingPageRef.current = null;
+          if (!isCurrentReader()) return;
           scrollPageRef.current = String(currentPage());
           lastPageMeasureRef.current = Date.now();
           enqueue({ scrollPct: currentScrollPct(), blockAnchor: scrollPageRef.current, readerKind: "pdf" }, false);
@@ -114,13 +118,15 @@ export function PdfReader({
     setNumPages(n);
     // Resume to the saved page once pages exist.
     const resumePage = initialProgress?.blockAnchor ? Number(initialProgress.blockAnchor) : null;
+    const readerPath = window.location.pathname;
     requestAnimationFrame(() => {
       setTimeout(() => {
+        if (window.location.pathname !== readerPath || !containerRef.current?.isConnected) return;
         const el = resumePage
           ? containerRef.current?.querySelector<HTMLElement>(`[data-page="${resumePage}"]`)
           : null;
         if (el) {
-          window.scrollTo({ top: el.offsetTop - HEADER_OFFSET });
+          window.scrollTo({ top: scrollTopForElement(el) });
         } else if (initialProgress?.scrollPct) {
           const max = document.documentElement.scrollHeight - window.innerHeight;
           window.scrollTo({ top: initialProgress.scrollPct * Math.max(0, max) });

@@ -1,5 +1,13 @@
 # Reader save behavior
 
+The reader pill, Continue Reading shelf, and paper cards show the saved scroll
+position (`scroll_pct`), so they agree on where reading resumes. `read_pct`
+continues to record viewport-bottom depth but does not set those displayed
+percentages. On reopen, HTML aligns the saved block below the sticky reader
+header and adjusts for late content layout changes; PDF aligns the saved page
+the same way. The reader header stays opaque and above article content, and a
+selection near it places the Highlight button below the selected text.
+
 Progress, highlight creation, note edits, and highlight deletion report success
 only after the server acknowledges the database operation. Authentication errors
 ask the user to sign in in another tab and then retry, preserving the current
@@ -59,6 +67,8 @@ failures explain what needs to change. Database details are not exposed.
 - When the document becomes hidden or a reader unmounts during SPA navigation,
   pending non-failed progress is flushed using the last captured snapshot. Failed
   writes remain paused; they are not silently retried during teardown.
+- Scroll events from the destination page are ignored while the reader unmounts,
+  so they cannot replace its queued position with 0%.
 - Unmount flushing is best effort, not a guarantee after the browser terminates.
   Browser history navigation and programmatic routing cannot reliably be blocked
   by these link handlers. Unsubmitted notes and failed drafts are held only in

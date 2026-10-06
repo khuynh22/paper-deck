@@ -134,6 +134,12 @@ async function verify() {
     window.scrollTo(0, 100);
     window.dispatchEvent(new Event("scroll"));
   });
+  const backLinkIsOnTop = await page.getByRole("link", { name: "Back to paper details" }).evaluate((link) => {
+    const rect = link.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return hit === link || link.contains(hit);
+  });
+  assert(backLinkIsOnTop, "Scrolled article must not cover the reader's back link");
   await page.getByRole("link", { name: "Back to paper details" }).click();
   await page.waitForURL(/\/paper\//);
   assert.equal(dialogs.length, 0);

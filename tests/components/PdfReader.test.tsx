@@ -34,6 +34,60 @@ test("PDF marker failure is visible and retry persists the original page", async
   expect(screen.getByRole("status", { name: "Reading progress save" })).toHaveTextContent("Saved");
 });
 
+test("PDF resumes a saved page using its document position below the reader header", async () => {
+  vi.useFakeTimers();
+  const previousScrollTo = window.scrollTo;
+  window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
+  const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    callback(0);
+    return 1;
+  });
+  const header = document.createElement("div");
+  header.setAttribute("data-reader-header", "");
+  header.getBoundingClientRect = () => ({ bottom: 104 }) as DOMRect;
+  document.body.append(header);
+  Object.defineProperty(window, "scrollY", { value: 700, configurable: true });
+  try {
+    const { container } = render(<PdfReader paperId="p1" initialProgress={{
+      scrollPct: 0.7, blockAnchor: "2", markedAnchor: null, readerKind: "pdf",
+      status: "reading", readPct: 0, markedPct: 0,
+    }} />);
+    act(() => pdf.onLoadSuccess?.({ numPages: 3 }));
+    const pageTwo = container.querySelector<HTMLElement>('[data-page="2"]')!;
+    Object.defineProperty(pageTwo, "offsetTop", { value: 10 });
+    pageTwo.getBoundingClientRect = () => ({ top: 300 }) as DOMRect;
+    await act(async () => vi.advanceTimersByTimeAsync(350));
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 884 });
+  } finally {
+    header.remove();
+    raf.mockRestore();
+    window.scrollTo = previousScrollTo;
+    vi.useRealTimers();
+  }
+});
+
+test("PDF page sampling tolerates subpixel resume rounding", async () => {
+  vi.useFakeTimers();
+  const header = document.createElement("div");
+  header.setAttribute("data-reader-header", "");
+  header.getBoundingClientRect = () => ({ bottom: 104 }) as DOMRect;
+  document.body.append(header);
+  try {
+    const { container } = render(<PdfReader paperId="p1" initialProgress={null} />);
+    act(() => pdf.onLoadSuccess?.({ numPages: 3 }));
+    const pages = [...container.querySelectorAll<HTMLElement>("[data-page]")];
+    pages[0].getBoundingClientRect = () => ({ top: -100 }) as DOMRect;
+    pages[1].getBoundingClientRect = () => ({ top: 116.8 }) as DOMRect;
+    pages[2].getBoundingClientRect = () => ({ top: 300 }) as DOMRect;
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(650));
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ blockAnchor: "2" });
+  } finally {
+    header.remove();
+    vi.useRealTimers();
+  }
+});
+
 test("PDF clear waits for a slow mark and its acknowledgement is the final state", async () => {
   let finish!: (value: unknown) => void;
   saveProgress.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
@@ -52,6 +106,25 @@ test("PDF unmount flushes a debounced scroll snapshot", async () => {
   fireEvent.scroll(window);
   await act(async () => unmount());
   expect(saveProgress).toHaveBeenCalledWith("p1", expect.objectContaining({ readerKind: "pdf" }));
+});
+
+test("a destination page scroll does not replace queued PDF progress", async () => {
+  const oldPath = window.location.pathname;
+  try {
+    Object.defineProperty(window, "scrollY", { value: 500, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 800, configurable: true });
+    Object.defineProperty(document.documentElement, "scrollHeight", { value: 1800, configurable: true });
+    const { unmount } = render(<PdfReader paperId="p1" initialProgress={null} />);
+    fireEvent.scroll(window);
+    window.history.pushState({}, "", "/paper/p1");
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    Object.defineProperty(document.documentElement, "scrollHeight", { value: 800, configurable: true });
+    fireEvent.scroll(window);
+    await act(async () => unmount());
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ scrollPct: 0.5 });
+  } finally {
+    window.history.replaceState({}, "", oldPath);
+  }
 });
 
 test("PDF scroll computes the current page at most once per 250 ms", () => {
