@@ -250,6 +250,40 @@ async function verify() {
   assert.equal(check(await db.from("highlights").select("id").eq("user_id", userId)).length, 0);
   await stopFailingDelete();
   console.log("PASS: failed deletion retains highlight until retry succeeds");
+
+  // Visit the feed before a new scroll so browser Back has an old shelf payload.
+  await page.goto(baseUrl);
+  const shelf = page.locator(`a[href="/reader/${paperId}"]`).first();
+  await shelf.waitFor();
+  await shelf.click();
+  await page.locator(".paper-html").waitFor();
+  await page.waitForTimeout(700);
+  await page.mouse.wheel(0, 100);
+  await page.waitForTimeout(150);
+  await page.evaluate(() => {
+    window.scrollTo(0, Math.round((document.documentElement.scrollHeight - innerHeight) * 0.5));
+  });
+  let savedPct = 0;
+  let lastPct = 0;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const row = check(await db.from("reading_progress").select("scroll_pct")
+      .eq("user_id", userId).eq("paper_id", paperId).single());
+    lastPct = row.scroll_pct;
+    if (row.scroll_pct > 0.4 && row.scroll_pct < 0.6) {
+      savedPct = Math.round(row.scroll_pct * 100);
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert(savedPct > 0, `Reader scroll was not saved before navigating back: ${lastPct}, viewport ${await page.evaluate(() => window.scrollY / (document.documentElement.scrollHeight - innerHeight))}`);
+  await page.goBack();
+  await page.waitForURL(baseUrl + "/");
+  await page.waitForFunction(({ id, pct }) => {
+    const link = document.querySelector(`a[href="/reader/${id}"]`);
+    return link?.textContent?.includes(`${pct}% READ`);
+  }, { id: paperId, pct: savedPct });
+  console.log("PASS: returning to a visited feed refreshes the saved shelf percentage");
+
   assert.deepEqual(pageErrors, []);
   console.log("PASS: no uncaught browser errors");
 }

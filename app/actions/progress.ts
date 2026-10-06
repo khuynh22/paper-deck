@@ -36,7 +36,7 @@ export async function loadProgress(paperId: string): Promise<ProgressRow | null>
  * fields are written; unspecified fields keep their existing values on conflict.
  */
 export async function saveProgress(paperId: string, update: ProgressUpdate): Promise<MutationResult> {
-  return withMutation(async (db, userId) => {
+  const result = await withMutation(async (db, userId) => {
     const row = buildProgressRow(userId, paperId, update, new Date().toISOString());
     const { data, error } = await db.from("reading_progress")
       .upsert(row, { onConflict: "user_id,paper_id" })
@@ -44,6 +44,19 @@ export async function saveProgress(paperId: string, update: ProgressUpdate): Pro
     if (error || !data) return mutationFailure(error);
     return { ok: true, data: undefined };
   });
+  if (result.ok) {
+    // Previously visited pages can remain in the client router cache. Refresh
+    // their progress labels after the write, including browser Back to the feed.
+    try {
+      revalidatePath("/");
+      revalidatePath("/library");
+      revalidatePath(`/paper/${paperId}`);
+    } catch (error) {
+      // The row is already committed; a cache error must not report save failure.
+      console.error("Could not refresh reading progress pages", error);
+    }
+  }
+  return result;
 }
 
 /** Remove a single paper from the user's reading history ("Continue reading" shelf). */

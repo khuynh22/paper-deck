@@ -69,6 +69,10 @@ failures explain what needs to change. Database details are not exposed.
   writes remain paused; they are not silently retried during teardown.
 - Scroll events from the destination page are ignored while the reader unmounts,
   so they cannot replace its queued position with 0%.
+- After an acknowledged progress write, the feed, library, and paper detail
+  routes are revalidated. Browser Back to an already visited feed then refreshes
+  its shelf percentage from the saved position. A very quick exit can briefly
+  show the previous percentage while the queued write is still in flight.
 - Unmount flushing is best effort, not a guarantee after the browser terminates.
   Browser history navigation and programmatic routing cannot reliably be blocked
   by these link handlers. Unsubmitted notes and failed drafts are held only in
@@ -117,6 +121,7 @@ PASS: Cancel after auth failure closes without a delete request
 PASS: note failure retains draft; retry persists it
 PASS: reload and a second mobile browser context restore mark and note
 PASS: failed deletion retains highlight until retry succeeds
+PASS: returning to a visited feed refreshes the saved shelf percentage
 PASS: no uncaught browser errors
 ```
 
