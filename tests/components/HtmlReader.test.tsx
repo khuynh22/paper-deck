@@ -2,7 +2,7 @@ import { test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 
 const { saveProgress } = vi.hoisted(() => ({
-  saveProgress: vi.fn(async (_paperId: string, _update: Record<string, unknown>) => {}),
+  saveProgress: vi.fn<(...args: [string, Record<string, unknown>]) => Promise<unknown>>(),
 }));
 vi.mock("@/app/actions/progress", () => ({ saveProgress }));
 
@@ -19,7 +19,8 @@ import type { ProgressRow } from "@/lib/types";
 const HTML = `<p data-blk="0">Alpha</p><p data-blk="1">Beta</p><p data-blk="2">Gamma</p>`;
 
 beforeEach(() => {
-  saveProgress.mockClear();
+  saveProgress.mockReset();
+  saveProgress.mockResolvedValue({ ok: true, data: undefined });
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
 });
 
@@ -80,6 +81,89 @@ test("renders the paper HTML content", () => {
   expect(screen.getByText("Gamma")).toBeInTheDocument();
 });
 
+test("resumes an anchored block below the sticky headers using its document position", () => {
+  let frame!: FrameRequestCallback;
+  const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    frame = callback;
+    return 1;
+  });
+  const header = document.createElement("div");
+  header.setAttribute("data-reader-header", "");
+  header.getBoundingClientRect = () => ({ bottom: 104 }) as DOMRect;
+  document.body.append(header);
+  try {
+    setGeometry(700, 800, 10000);
+    const { container } = renderReader(PROGRESS({ blockAnchor: "1", scrollPct: 0.7 }));
+    const block = container.querySelector<HTMLElement>('[data-blk="1"]')!;
+    Object.defineProperty(block, "offsetTop", { value: 10 });
+    block.getBoundingClientRect = () => ({ top: 300 }) as DOMRect;
+    act(() => frame(0));
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 884 });
+  } finally {
+    header.remove();
+    raf.mockRestore();
+  }
+});
+
+test("re-aligns the saved block if the article grows after initial resume", () => {
+  const frames: FrameRequestCallback[] = [];
+  const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    frames.push(callback);
+    return frames.length;
+  });
+  let resized: (() => void) | undefined;
+  const originalObserver = globalThis.ResizeObserver;
+  globalThis.ResizeObserver = class {
+    constructor(callback: ResizeObserverCallback) { resized = () => callback([], this); }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as typeof ResizeObserver;
+  const header = document.createElement("div");
+  header.setAttribute("data-reader-header", "");
+  header.getBoundingClientRect = () => ({ bottom: 104 }) as DOMRect;
+  document.body.append(header);
+  try {
+    setGeometry(700, 800, 10000);
+    const { container } = renderReader(PROGRESS({ blockAnchor: "1", scrollPct: 0.7 }));
+    const block = container.querySelector<HTMLElement>('[data-blk="1"]')!;
+    let blockTop = 300;
+    block.getBoundingClientRect = () => ({ top: blockTop }) as DOMRect;
+    act(() => frames.shift()?.(0));
+    blockTop = 600;
+    act(() => resized?.());
+    act(() => frames.shift()?.(0));
+    expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 1184 });
+    expect(window.scrollTo).toHaveBeenCalledTimes(2);
+  } finally {
+    header.remove();
+    raf.mockRestore();
+    globalThis.ResizeObserver = originalObserver;
+  }
+});
+
+test("a resumed block remains the saved anchor after subpixel scroll rounding", async () => {
+  vi.useFakeTimers();
+  const header = document.createElement("div");
+  header.setAttribute("data-reader-header", "");
+  header.getBoundingClientRect = () => ({ bottom: 104 }) as DOMRect;
+  document.body.append(header);
+  try {
+    const { container } = renderReader(null);
+    const blocks = [...container.querySelectorAll<HTMLElement>("[data-blk]")];
+    blocks[0].getBoundingClientRect = () => ({ top: -100 }) as DOMRect;
+    blocks[1].getBoundingClientRect = () => ({ top: 116.8 }) as DOMRect;
+    blocks[2].getBoundingClientRect = () => ({ top: 300 }) as DOMRect;
+    setGeometry(700, 800, 10000);
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(650));
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ blockAnchor: "1" });
+  } finally {
+    header.remove();
+    vi.useRealTimers();
+  }
+});
+
 test("paints an initial highlight passed to the reader", () => {
   const { container } = render(
     <HtmlReader
@@ -127,10 +211,10 @@ test("marking at the bottom persists status done", () => {
   expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ markedPct: 1, status: "done" });
 });
 
-test("'Clear mark' removes the band and persists an unmarked, reading state", () => {
+test("'Clear mark' removes the band after persisting an unmarked, reading state", async () => {
   const { container } = renderReader(PROGRESS({ scrollPct: 0.5, status: "done", readPct: 0.9, markedPct: 0.9 }));
   expect(band(container)).not.toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: /clear mark/i }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /clear mark/i })));
   expect(band(container)).toBeNull();
   expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ markedPct: 0, status: "reading" });
 });
@@ -151,4 +235,168 @@ test("a debounced scroll save does not change the mark or status", () => {
   } finally {
     vi.useRealTimers();
   }
+});
+
+test("failed marking shows retry, never Marked, and retries the retained boundary", async () => {
+  saveProgress.mockResolvedValueOnce({ ok: false, code: "storage", message: "Couldn’t save. Please retry." });
+  saveProgress.mockResolvedValueOnce({ ok: true, data: undefined });
+  const { container } = renderReader(null);
+  stubContentGeometry(container, 200, -300, 1000);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /i finished here/i })));
+  expect(screen.queryByText(/marked ✓/i)).not.toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent(/couldn’t save/i);
+  expect(band(container)).toHaveAttribute("data-save-state", "unsaved");
+  // The viewport changes while offline: retry must preserve the button's intent.
+  stubContentGeometry(container, 200, -800, 1000);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^retry$/i })));
+  expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ markedPct: 0.5 });
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toHaveTextContent(/saved/i);
+  expect(band(container)).toHaveAttribute("data-save-state", "saved");
+});
+
+test("a slow mark then clear is serialized and the older response never reports Saved", async () => {
+  let finish!: (value: unknown) => void;
+  saveProgress.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  let finishClear!: (value: unknown) => void;
+  saveProgress.mockImplementationOnce(() => new Promise((resolve) => { finishClear = resolve; }));
+  const { container } = renderReader(null);
+  stubContentGeometry(container, 200, -300, 1000);
+  fireEvent.click(screen.getByRole("button", { name: /i finished here/i }));
+  fireEvent.click(screen.getByRole("button", { name: /clear mark/i }));
+  expect(saveProgress).toHaveBeenCalledTimes(1);
+  await act(async () => finish({ ok: true, data: undefined }));
+  expect(saveProgress).toHaveBeenCalledTimes(2);
+  expect(saveProgress.mock.calls[1][1]).toMatchObject({ markedPct: 0, status: "reading" });
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toHaveTextContent(/saving/i);
+  await act(async () => finishClear({ ok: true, data: undefined }));
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toHaveTextContent(/saved/i);
+  expect(band(container)).toBeNull();
+});
+
+test("unmount flushes the latest scroll snapshot instead of cancelling the debounce", async () => {
+  const { unmount } = renderReader(null);
+  setGeometry(300, 200, 1000);
+  fireEvent.scroll(window);
+  await act(async () => unmount());
+  expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ scrollPct: 0.375 });
+});
+
+test("a destination page scroll during navigation cannot overwrite the saved reader position", async () => {
+  const oldPath = window.location.pathname;
+  try {
+    setGeometry(500, 800, 1800);
+    const { unmount } = renderReader(null);
+    fireEvent.scroll(window);
+    window.history.pushState({}, "", "/paper/p1");
+    setGeometry(0, 800, 800);
+    fireEvent.scroll(window);
+    await act(async () => unmount());
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ scrollPct: 0.5 });
+  } finally {
+    window.history.replaceState({}, "", oldPath);
+  }
+});
+
+test("routine scroll autosaves stay quiet and do not warn on navigation", () => {
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  try {
+    const { container } = render(
+      <HtmlReader paperId="p1" html={`${HTML}<a href="/paper/p1">Paper details</a>`} initialProgress={null} />,
+    );
+    setGeometry(300, 200, 1000);
+    fireEvent.scroll(window);
+    expect(screen.getByRole("status", { name: "Reading progress save" })).toBeEmptyDOMElement();
+    const link = container.querySelector("a")!;
+    link.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(link);
+    expect(confirm).not.toHaveBeenCalled();
+  } finally { confirm.mockRestore(); }
+});
+
+test("scroll position captures block geometry at most once per 250 ms", () => {
+  const now = vi.spyOn(Date, "now");
+  try {
+    const { container } = renderReader(null);
+    const paper = container.querySelector<HTMLElement>(".paper-html")!;
+    const geometry = vi.spyOn(paper, "querySelectorAll");
+    setGeometry(300, 200, 1000);
+    for (let i = 0; i < 20; i++) {
+      now.mockReturnValue(i * 16);
+      fireEvent.scroll(window);
+    }
+    expect(geometry).toHaveBeenCalledTimes(2);
+    now.mockReturnValue(512);
+    fireEvent.scroll(window);
+    expect(geometry).toHaveBeenCalledTimes(3);
+  } finally { now.mockRestore(); }
+});
+
+test("progress status region stays mounted while its text changes", async () => {
+  let finish!: (value: unknown) => void;
+  saveProgress.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const { container } = renderReader(null);
+  const status = screen.getByRole("status", { name: "Reading progress save" });
+  expect(status).toBeEmptyDOMElement();
+  stubContentGeometry(container, 200, -300, 1000);
+  fireEvent.click(screen.getByRole("button", { name: /i finished here/i }));
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toBe(status);
+  expect(status).toHaveTextContent("Saving");
+  await act(async () => finish({ ok: true, data: undefined }));
+  expect(screen.getByRole("status", { name: "Reading progress save" })).toBe(status);
+  expect(status).toHaveTextContent("Saved");
+});
+
+test("a fast final scroll saves its trailing block anchor", async () => {
+  vi.useFakeTimers();
+  try {
+    const { container } = renderReader(null);
+    const blocks = [...container.querySelectorAll<HTMLElement>("[data-blk]")];
+    let top = 0;
+    blocks.forEach((block, index) => {
+      block.getBoundingClientRect = () => ({ top: index <= top ? -100 : 100 }) as DOMRect;
+    });
+    setGeometry(100, 200, 1000);
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    top = 2;
+    setGeometry(500, 200, 1000);
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(750));
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ blockAnchor: "2", scrollPct: 0.625 });
+  } finally { vi.useRealTimers(); }
+});
+
+test("navigation before the trailing measurement falls back to the latest scroll percentage", async () => {
+  vi.useFakeTimers();
+  try {
+    const { unmount } = renderReader(null);
+    setGeometry(100, 200, 1000);
+    fireEvent.scroll(window);
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    setGeometry(500, 200, 1000);
+    fireEvent.scroll(window);
+    await act(async () => unmount());
+    expect(saveProgress.mock.calls.at(-1)?.[1]).toMatchObject({ blockAnchor: null, scrollPct: 0.625 });
+  } finally { vi.useRealTimers(); }
+});
+
+test("failed Clear keeps the previous boundary as an unsaved removal preview", async () => {
+  saveProgress.mockResolvedValueOnce({ ok: false, code: "storage", message: "Couldn’t save. Please retry." });
+  const { container } = renderReader(PROGRESS({ markedPct: 0.5, status: "reading" }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /clear mark/i })));
+  expect(band(container)).toHaveAttribute("data-save-state", "pending-clear");
+  expect(band(container)?.style.height).toBe("50%");
+  expect(screen.getByText(/clear mark \(unsaved\)/i)).toBeInTheDocument();
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^retry$/i })));
+  expect(band(container)).toBeNull();
+});
+
+test("a saved mark remains identifiable when a later Clear fails", async () => {
+  const { container } = renderReader(null);
+  stubContentGeometry(container, 200, -300, 1000);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /i finished here/i })));
+  expect(band(container)).toHaveAttribute("data-save-state", "saved");
+  saveProgress.mockResolvedValueOnce({ ok: false, code: "storage", message: "Couldn’t save. Please retry." });
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: /^clear mark$/i })));
+  expect(band(container)).toHaveAttribute("data-save-state", "pending-clear");
 });
