@@ -37,5 +37,7 @@ Run `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`.
 With local Supabase Docker running, run `node scripts/test-ingestion-db.mjs`.
 The database harness creates a disposable database in `supabase_db_paper-deck`,
 applies all migrations, tests missing fields, zero, DOI retries, mixed failures,
-permission boundaries, and concurrent independent connections, then removes only
-its own database. Override `TEST_POSTGRES_CONTAINER` for a different local container.
+outcome counts, service-role writes, and concurrent independent connections,
+then removes only its own database. The disposable database mirrors Supabase's
+service-role table grants. Override `TEST_POSTGRES_CONTAINER` for a different
+local container.

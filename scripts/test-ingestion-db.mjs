@@ -26,6 +26,9 @@ function concurrent(text) {
 docker(["createdb", "-U", "postgres", database]);
 try {
   sql("create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql as 'select null::uuid';");
+  // A fresh createdb does not inherit Supabase's per-database default table
+  // grants. Mirror the service role grant before creating the app tables.
+  sql("alter default privileges for role postgres in schema public grant all on tables to service_role;");
   for (const file of readdirSync("supabase/migrations").filter(f => f.endsWith(".sql")).sort()) {
     sql(readFileSync("supabase/migrations/" + file, "utf8"));
   }
@@ -37,7 +40,7 @@ try {
   ]);
   const result = sql("select count(*) from papers where doi='10.test/concurrent' and citations=12 and hf_upvotes=9;").trim();
   if (result !== "1") throw new Error("Concurrent imports lost fields or created duplicates: " + result);
-  console.log("Database ingestion checks passed: preservation, zero, DOI, mixed failures, permissions, concurrent imports.");
+  console.log("Database ingestion checks passed: preservation, zero, DOI, mixed outcomes, service-role writes, concurrent imports.");
 } finally {
   docker(["dropdb", "-U", "postgres", database]);
 }
