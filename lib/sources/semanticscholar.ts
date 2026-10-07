@@ -39,7 +39,7 @@ export function parseS2(json: unknown): NormalizedPaper[] {
           ? `https://doi.org/${doi}`
           : null,
       publishedAt: p.year ? `${p.year}-01-01T00:00:00Z` : null,
-      signals: { citations: p.citationCount ?? 0 },
+      signals: { citations: p.citationCount },
     } satisfies NormalizedPaper;
   });
 }

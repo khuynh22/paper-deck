@@ -22,7 +22,8 @@ export function ExternalSearch({ query }: { query: string }) {
         setMsg(r.error);
         return;
       }
-      setMsg(r.added > 0 ? `Merged ${r.added} arXiv result(s).` : "No new arXiv results.");
+      const counts = r.ingestion;
+      setMsg(counts ? `${counts.inserted} added, ${counts.updated} updated, ${counts.skipped} unchanged or skipped, ${counts.failed} failed.` : "No new arXiv results.");
       router.refresh();
     });
   }

@@ -1,51 +1,50 @@
 import { serviceClient } from "@/lib/db/service";
-import { dedupe } from "@/lib/corpus/dedupe";
 import type { NormalizedPaper } from "@/lib/types";
 
-/** Map a normalized paper to a `papers` table row. */
+/** Null/empty metadata means unknown; numeric zero is supplied data. */
 export function toPaperRow(p: NormalizedPaper) {
-  return {
-    arxiv_id: p.arxivId,
-    doi: p.doi,
-    title: p.title,
-    authors: p.authors,
-    abstract: p.abstract,
-    categories: p.categories,
-    html_url: p.htmlUrl,
-    pdf_url: p.pdfUrl,
-    source_url: p.sourceUrl,
-    published_at: p.publishedAt,
-    venue: p.venue ?? null,
-    hf_upvotes: p.signals.hfUpvotes ?? 0,
-    pwc_stars: p.signals.pwcStars ?? 0,
-    citations: p.signals.citations ?? 0,
-    updated_at: new Date().toISOString(),
-  };
+  return Object.fromEntries(Object.entries({
+    arxiv_id: p.arxivId?.trim() || undefined,
+    doi: p.doi?.trim().toLowerCase() || undefined,
+    title: p.title.trim() || undefined,
+    authors: p.authors.length ? p.authors : undefined,
+    abstract: p.abstract?.trim() || undefined,
+    categories: p.categories.length ? p.categories : undefined,
+    html_url: p.htmlUrl || undefined,
+    pdf_url: p.pdfUrl || undefined,
+    source_url: p.sourceUrl || undefined,
+    published_at: p.publishedAt || undefined,
+    venue: p.venue?.trim() || undefined,
+    hf_upvotes: p.signals.hfUpvotes,
+    pwc_stars: p.signals.pwcStars,
+    citations: p.signals.citations,
+  }).filter(([, value]) => value !== undefined));
 }
 
-/**
- * Upsert papers into the shared corpus, deduplicated. Rows with an arxiv_id are
- * conflict-resolved on that key; rows without one are inserted (best-effort).
- */
-export async function upsertPapers(papers: NormalizedPaper[]): Promise<number> {
-  const deduped = dedupe(papers);
-  if (deduped.length === 0) return 0;
+export interface IngestionResult {
+  inserted: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+}
 
+/** Each input gets an outcome; bad records cannot discard unrelated papers. */
+export async function upsertPapers(papers: NormalizedPaper[]): Promise<IngestionResult> {
+  const result: IngestionResult = { inserted: 0, updated: 0, skipped: 0, failed: 0 };
+  if (!papers.length) return result;
   const db = serviceClient();
-  const withArxiv = deduped.filter((p) => p.arxivId).map(toPaperRow);
-  const withoutArxiv = deduped.filter((p) => !p.arxivId).map(toPaperRow);
-
-  if (withArxiv.length) {
-    const { error } = await db
-      .from("papers")
-      .upsert(withArxiv, { onConflict: "arxiv_id", ignoreDuplicates: false });
-    if (error) throw error;
+  for (let offset = 0; offset < papers.length; offset += 100) {
+    const rows = papers.slice(offset, offset + 100).map(toPaperRow);
+    const { data, error } = await db.rpc("merge_papers", { incoming: rows });
+    if (error || !Array.isArray(data) || data.length !== rows.length) {
+      throw new Error("Paper import could not be confirmed. Please retry.");
+    }
+    for (const row of data) {
+      if (!["inserted", "updated", "skipped", "failed"].includes(row.outcome)) {
+        throw new Error("Paper import returned an invalid outcome.");
+      }
+      result[row.outcome as keyof IngestionResult]++;
+    }
   }
-  if (withoutArxiv.length) {
-    // No reliable unique key; insert and ignore duplicates by DOI uniqueness if present.
-    const { error } = await db.from("papers").insert(withoutArxiv);
-    if (error && error.code !== "23505") throw error; // ignore unique violations
-  }
-
-  return deduped.length;
+  return result;
 }
