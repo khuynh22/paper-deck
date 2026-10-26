@@ -1,51 +1,55 @@
 import { serviceClient } from "@/lib/db/service";
-import { dedupe } from "@/lib/corpus/dedupe";
-import type { NormalizedPaper } from "@/lib/types";
+import type { NormalizedPaper, PaperRow } from "@/lib/types";
+import { dedupe, type DeduplicatedPaper } from "./dedupe";
+import { INGESTION_BATCH_SIZE, type IngestionResult } from "./ingestion";
+export type { IngestionResult } from "./ingestion";
 
-/** Map a normalized paper to a `papers` table row. */
-export function toPaperRow(p: NormalizedPaper) {
-  return {
-    arxiv_id: p.arxivId,
-    doi: p.doi,
-    title: p.title,
-    authors: p.authors,
-    abstract: p.abstract,
-    categories: p.categories,
-    html_url: p.htmlUrl,
-    pdf_url: p.pdfUrl,
-    source_url: p.sourceUrl,
-    published_at: p.publishedAt,
-    venue: p.venue ?? null,
-    hf_upvotes: p.signals.hfUpvotes ?? 0,
-    pwc_stars: p.signals.pwcStars ?? 0,
-    citations: p.signals.citations ?? 0,
-    updated_at: new Date().toISOString(),
+/** Null/empty metadata means unknown; numeric zero is supplied data. */
+type PaperImportRow = Partial<PaperRow> & { doi_aliases?: string[] };
+
+export function toPaperRow(p: NormalizedPaper & Partial<Pick<DeduplicatedPaper, "doiAliases">>): PaperImportRow {
+  const row: PaperImportRow = {
+    arxiv_id: p.arxivId?.trim() || undefined,
+    doi: p.doi?.trim().toLowerCase() || undefined,
+    doi_aliases: p.doiAliases && p.doiAliases.length > 1 ? p.doiAliases : undefined,
+    title: p.title.trim() || undefined,
+    authors: p.authors.length ? p.authors : undefined,
+    abstract: p.abstract?.trim() || undefined,
+    categories: p.categories.length ? p.categories : undefined,
+    html_url: p.htmlUrl || undefined,
+    pdf_url: p.pdfUrl || undefined,
+    source_url: p.sourceUrl || undefined,
+    published_at: p.publishedAt || undefined,
+    venue: p.venue?.trim() || undefined,
+    hf_upvotes: p.signals.hfUpvotes,
+    pwc_stars: p.signals.pwcStars,
+    citations: p.signals.citations,
   };
+  return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== undefined));
 }
 
-/**
- * Upsert papers into the shared corpus, deduplicated. Rows with an arxiv_id are
- * conflict-resolved on that key; rows without one are inserted (best-effort).
- */
-export async function upsertPapers(papers: NormalizedPaper[]): Promise<number> {
-  const deduped = dedupe(papers);
-  if (deduped.length === 0) return 0;
-
+/** Each input gets an outcome; bad records cannot discard unrelated papers. */
+export async function upsertPapers(papers: NormalizedPaper[]): Promise<IngestionResult> {
+  const result: IngestionResult = { inserted: 0, updated: 0, skipped: 0, failed: 0, unconfirmed: 0 };
+  if (!papers.length) return result;
   const db = serviceClient();
-  const withArxiv = deduped.filter((p) => p.arxivId).map(toPaperRow);
-  const withoutArxiv = deduped.filter((p) => !p.arxivId).map(toPaperRow);
-
-  if (withArxiv.length) {
-    const { error } = await db
-      .from("papers")
-      .upsert(withArxiv, { onConflict: "arxiv_id", ignoreDuplicates: false });
-    if (error) throw error;
+  const unique = dedupe(papers);
+  for (let offset = 0; offset < unique.length; offset += INGESTION_BATCH_SIZE) {
+    const rows = unique.slice(offset, offset + INGESTION_BATCH_SIZE).map(toPaperRow);
+    try {
+      const { data, error } = await db.rpc("merge_papers", { incoming: rows });
+      if (error) throw new Error("Paper import RPC failed", { cause: error });
+      if (!Array.isArray(data) || data.length !== rows.length ||
+          new Set(data.map(row => row?.input_index)).size !== rows.length ||
+          data.some(row => !row || !Number.isInteger(row.input_index) || row.input_index < 0 || row.input_index >= rows.length ||
+            !["inserted", "updated", "skipped", "failed"].includes(row.outcome))) {
+        throw new Error("Paper import returned invalid outcomes");
+      }
+      for (const row of data) result[row.outcome as Exclude<keyof IngestionResult, "unconfirmed">]++;
+    } catch (error) {
+      console.error("Paper import batch unconfirmed", { offset, count: rows.length, error, cause: error instanceof Error ? error.cause : undefined });
+      result.unconfirmed += rows.length;
+    }
   }
-  if (withoutArxiv.length) {
-    // No reliable unique key; insert and ignore duplicates by DOI uniqueness if present.
-    const { error } = await db.from("papers").insert(withoutArxiv);
-    if (error && error.code !== "23505") throw error; // ignore unique violations
-  }
-
-  return deduped.length;
+  return result;
 }

@@ -1,4 +1,9 @@
 import { test, expect } from "vitest";
+
+test("distinguishes absent signals from explicitly supplied zero", () => {
+  expect(parseSerpScholar({ organic_results: [{ title: "T" }] })[0].signals.citations).toBeUndefined();
+  expect(parseSerpScholar({ organic_results: [{ title: "T", inline_links: { cited_by: { total: 0 } } }] })[0].signals.citations).toBe(0);
+});
 import { parseSerpScholar } from "@/lib/sources/googlescholar";
 
 const json = {

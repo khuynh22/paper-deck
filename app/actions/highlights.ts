@@ -4,6 +4,7 @@ import { z } from "zod";
 import { withMutation } from "@/lib/db/mutation";
 import { highlightCreationNotFound, highlightNotFound, mutationFailure, type MutationResult } from "@/lib/mutationResult";
 import { serverClient } from "@/lib/db/server";
+import { resolvePaperId } from "@/lib/db/paperIdentity";
 import { currentUser } from "@/lib/auth";
 import type { Highlight } from "@/lib/types";
 import {
@@ -23,6 +24,7 @@ export async function loadHighlights(paperId: string): Promise<Highlight[]> {
   const user = await currentUser();
   if (!user) return [];
   const db = await serverClient();
+  paperId = await resolvePaperId(db, paperId);
   const { data } = await db
     .from("highlights")
     .select(HL_COLS)
@@ -43,8 +45,9 @@ export async function createHighlight(input: HighlightInput, requestId: string):
       ? "Select a shorter passage and try again." : "Selection changed. Select the passage again." };
   }
   return withMutation(async (db, userId) => {
+    const canonicalInput = { ...parsed.data, paperId: await resolvePaperId(db, parsed.data.paperId) };
     const { data, error } = await db.from("highlights")
-      .insert({ ...highlightInsert(userId, parsed.data), id: requestId })
+      .insert({ ...highlightInsert(userId, canonicalInput), id: requestId })
       .select(HL_COLS).single();
     if (!error && data) return { ok: true, data: rowToHighlight(data as HighlightRow) };
     if (error?.code !== "23505") return mutationFailure(error);
@@ -56,7 +59,7 @@ export async function createHighlight(input: HighlightInput, requestId: string):
     if (existing.error) return mutationFailure(existing.error);
     if (!existing.data) return highlightCreationNotFound;
     const h = rowToHighlight(existing.data as HighlightRow);
-    if (h.paperId !== parsed.data.paperId || h.blockAnchor !== parsed.data.blockAnchor ||
+    if (h.paperId !== canonicalInput.paperId || h.blockAnchor !== parsed.data.blockAnchor ||
         h.startOffset !== parsed.data.startOffset || h.endOffset !== parsed.data.endOffset ||
         h.quote !== parsed.data.quote) return highlightCreationNotFound;
     return { ok: true, data: h };

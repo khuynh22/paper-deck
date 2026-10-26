@@ -50,7 +50,7 @@ export function parseSerpScholar(json: unknown): NormalizedPaper[] {
       pdfUrl: arxivId ? `https://arxiv.org/pdf/${arxivId}` : null,
       sourceUrl: r.link ?? null,
       publishedAt: yearFromSummary(r.publication_info?.summary),
-      signals: { citations: r.inline_links?.cited_by?.total ?? 0 },
+      signals: { citations: r.inline_links?.cited_by?.total },
     } satisfies NormalizedPaper;
   });
 }

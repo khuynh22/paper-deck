@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { searchArxivAction } from "@/app/actions/search";
 import { Button } from "@/components/ui";
+import { formatIngestion } from "@/lib/corpus/ingestion";
 
 /**
  * "Search arXiv for more" — pulls fresh matches into the corpus, then refreshes
@@ -13,17 +14,27 @@ export function ExternalSearch({ query }: { query: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   function onClick() {
     setMsg(null);
+    setFailed(false);
     startTransition(async () => {
-      const r = await searchArxivAction(query);
-      if (r.error) {
-        setMsg(r.error);
-        return;
+      try {
+        const r = await searchArxivAction(query);
+        if (r.error) {
+          setMsg(r.error);
+          setFailed(true);
+          return;
+        }
+        const counts = r.ingestion;
+        setMsg(counts ? formatIngestion(counts, "No new arXiv results.") : "No new arXiv results.");
+        setFailed(!!counts && (counts.failed > 0 || counts.unconfirmed > 0));
+        router.refresh();
+      } catch {
+        setMsg("arXiv search failed. Please retry.");
+        setFailed(true);
       }
-      setMsg(r.added > 0 ? `Merged ${r.added} arXiv result(s).` : "No new arXiv results.");
-      router.refresh();
     });
   }
 
@@ -33,7 +44,7 @@ export function ExternalSearch({ query }: { query: string }) {
       <Button variant="outline" disabled={pending} onClick={onClick}>
         {pending ? "Searching arXiv…" : "Search arXiv for more"}
       </Button>
-      {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+      {msg && <span role={failed ? "alert" : "status"} className={`text-xs ${failed ? "text-danger" : "text-muted-foreground"}`}>{msg}</span>}
     </div>
   );
 }
