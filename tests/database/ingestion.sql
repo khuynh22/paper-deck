@@ -83,6 +83,10 @@ begin
   end if;
   select * into r from merge_papers('[{"arxiv_id":"different-arxiv","doi":"10.test/occupied","title":"Conflict"}]');
   if r.outcome <> 'failed' then problems := array_append(problems, 'conflicting arxiv identities'); end if;
+  select * into r from merge_papers('[{"arxiv_id":"test-alias","doi":"10.test/journal","doi_aliases":["10.test/occupied"],"title":"Hidden conflict","citations":999}]');
+  if r.outcome <> 'failed' or exists(select 1 from papers where arxiv_id='test-alias' and citations=999) then
+    problems := array_append(problems, 'deduplicated DOI alias validation');
+  end if;
   select * into r from merge_papers('[{"title":"Bad date","published_at":"not-a-date"},{"title":"After bad date","doi":"10.test/after-bad-date"}]') where input_index=1;
   if r.outcome <> 'inserted' then problems := array_append(problems, 'bad timestamp isolation'); end if;
   if cardinality(problems) > 0 then raise exception 'regressions: %', problems; end if;

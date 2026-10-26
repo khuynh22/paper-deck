@@ -122,7 +122,25 @@ test("different journal DOIs remain visible to database identity checks", () => 
   expect(dedupe([
     base({ arxivId: "a", doi: "10.test/first" }),
     base({ arxivId: "a", doi: "10.test/other-existing-paper" }),
-  ])).toHaveLength(2);
+  ])).toMatchObject([{ doiAliases: ["10.test/first", "10.test/other-existing-paper"] }]);
+});
+
+test("arxiv DOI aliases survive deduplication for database conflict checks", () => {
+  const [paper] = dedupe([
+    base({ arxivId: "a", doi: "10.test/journal" }),
+    base({ arxivId: "a", doi: "10.48550/arxiv.a" }),
+  ]);
+  expect(paper).toMatchObject({ doi: "10.test/journal", doiAliases: ["10.test/journal", "10.48550/arxiv.a"] });
+});
+
+test("a conflicting group does not prevent compatible duplicates keeping maximum signals", () => {
+  const result = dedupe([
+    base({ arxivId: "a", doi: "10.test/shared", signals: { citations: 100 } }),
+    base({ arxivId: "b", doi: "10.test/shared", signals: { citations: 1 } }),
+    base({ arxivId: "a", doi: "10.test/shared", signals: { citations: 0 } }),
+  ]);
+  expect(result).toHaveLength(2);
+  expect(result[0].signals.citations).toBe(100);
 });
 
 test("blank optional fields cannot hide richer duplicate metadata", () => {

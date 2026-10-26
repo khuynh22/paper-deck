@@ -1,14 +1,17 @@
 import { serviceClient } from "@/lib/db/service";
 import type { NormalizedPaper, PaperRow } from "@/lib/types";
-import { dedupe } from "./dedupe";
+import { dedupe, type DeduplicatedPaper } from "./dedupe";
 import { INGESTION_BATCH_SIZE, type IngestionResult } from "./ingestion";
 export type { IngestionResult } from "./ingestion";
 
 /** Null/empty metadata means unknown; numeric zero is supplied data. */
-export function toPaperRow(p: NormalizedPaper): Partial<PaperRow> {
-  const row: Partial<PaperRow> = {
+type PaperImportRow = Partial<PaperRow> & { doi_aliases?: string[] };
+
+export function toPaperRow(p: NormalizedPaper & Partial<Pick<DeduplicatedPaper, "doiAliases">>): PaperImportRow {
+  const row: PaperImportRow = {
     arxiv_id: p.arxivId?.trim() || undefined,
     doi: p.doi?.trim().toLowerCase() || undefined,
+    doi_aliases: p.doiAliases && p.doiAliases.length > 1 ? p.doiAliases : undefined,
     title: p.title.trim() || undefined,
     authors: p.authors.length ? p.authors : undefined,
     abstract: p.abstract?.trim() || undefined,

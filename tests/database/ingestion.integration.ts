@@ -46,3 +46,26 @@ test("the real HTTP endpoint enforces the SQL batch bound", async () => {
   const { error } = await service.rpc("merge_papers", { incoming: Array.from({ length: 101 }, () => ({ title: "Too many" })) });
   expect(error?.message).toContain("at most 100");
 });
+
+test("deduplicated DOI aliases still reject conflicts against existing rows through HTTP", async () => {
+  await upsertPapers([paper({ arxivId: "http-alias-conflict", doi: "10.test/http-journal", signals: { citations: 7 } })]);
+  await upsertPapers([paper({ doi: "10.48550/arxiv.http-alias-conflict" })]);
+  expect(await upsertPapers([
+    paper({ arxivId: "http-alias-conflict", doi: "10.test/http-journal" }),
+    paper({ arxivId: "http-alias-conflict", doi: "10.48550/arxiv.http-alias-conflict", signals: { citations: 999 } }),
+  ])).toEqual({ inserted: 0, updated: 0, skipped: 0, failed: 1, unconfirmed: 0 });
+  const { data, error } = await service.from("papers").select("citations").eq("arxiv_id", "http-alias-conflict").single();
+  expect(error).toBeNull();
+  expect(data?.citations).toBe(7);
+});
+
+test("incompatible inputs cannot reset a compatible group's strongest signal through HTTP", async () => {
+  expect(await upsertPapers([
+    paper({ arxivId: "http-compatible-a", doi: "10.test/http-conflicting-group", signals: { citations: 100 } }),
+    paper({ arxivId: "http-compatible-b", doi: "10.test/http-conflicting-group", signals: { citations: 1 } }),
+    paper({ arxivId: "http-compatible-a", doi: "10.test/http-conflicting-group", signals: { citations: 0 } }),
+  ])).toEqual({ inserted: 1, updated: 0, skipped: 0, failed: 1, unconfirmed: 0 });
+  const { data, error } = await service.from("papers").select("arxiv_id,citations").eq("doi", "10.test/http-conflicting-group");
+  expect(error).toBeNull();
+  expect(data).toEqual([{ arxiv_id: "http-compatible-a", citations: 100 }]);
+});

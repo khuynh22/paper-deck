@@ -1,5 +1,9 @@
 import type { NormalizedPaper } from "@/lib/types";
 
+export interface DeduplicatedPaper extends NormalizedPaper {
+  doiAliases: string[];
+}
+
 /** Stable key for deduplicating the same paper across sources. */
 export function dedupeKey(p: NormalizedPaper): string {
   if (p.arxivId?.trim()) return `arxiv:${p.arxivId.trim()}`;
@@ -17,7 +21,7 @@ function maxSignal(a: number | undefined, b: number | undefined): number | undef
  * Merge duplicate papers into one, keeping the richest metadata and the strongest
  * signal from each source (HF upvotes, PwC stars, citations).
  */
-export function dedupe(papers: NormalizedPaper[]): NormalizedPaper[] {
+export function dedupe(papers: NormalizedPaper[]): DeduplicatedPaper[] {
   const groups: { paper: NormalizedPaper; dois: Set<string> }[] = [];
   for (const input of papers) {
     const p = {
@@ -31,14 +35,16 @@ export function dedupe(papers: NormalizedPaper[]): NormalizedPaper[] {
       sourceUrl: input.sourceUrl?.trim() || null,
       venue: input.venue?.trim() || null,
     };
-    const matches = groups.filter(({ paper, dois }) =>
+    let matches = groups.filter(({ paper, dois }) =>
       (p.arxivId && p.arxivId === paper.arxivId) ||
       (p.doi && dois.has(p.doi)) ||
       (!p.arxivId && !p.doi && !paper.arxivId && !paper.doi && p.title.trim() && dedupeKey(p) === dedupeKey(paper)),
     );
+    if (p.arxivId && matches.some(g => g.paper.arxivId === p.arxivId)) {
+      matches = matches.filter(g => !g.paper.arxivId || g.paper.arxivId === p.arxivId);
+    }
     const arxivIds = new Set([p.arxivId, ...matches.map(g => g.paper.arxivId)].filter(Boolean));
-    const journalDois = new Set([p.doi, ...matches.flatMap(g => [...g.dois])].filter(doi => doi && !doi.startsWith("10.48550/arxiv.")));
-    if (!matches.length || arxivIds.size > 1 || journalDois.size > 1) {
+    if (!matches.length || arxivIds.size > 1) {
       groups.push({ paper: { ...p, authors: [...p.authors], categories: [...p.categories], signals: { ...p.signals } }, dois: new Set(p.doi ? [p.doi] : []) });
       continue;
     }
@@ -51,7 +57,7 @@ export function dedupe(papers: NormalizedPaper[]): NormalizedPaper[] {
     target.paper = merge(target.paper, p);
     if (p.doi) target.dois.add(p.doi);
   }
-  return groups.map(g => g.paper);
+  return groups.map(g => ({ ...g.paper, doiAliases: [...g.dois] }));
 }
 
 function merge(cur: NormalizedPaper, p: NormalizedPaper): NormalizedPaper {

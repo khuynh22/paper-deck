@@ -21,7 +21,9 @@ timestamp from a year-only date without future provenance metadata.
 Before batching, imports deduplicate compatible arXiv and normalized DOI
 identities, including DOI-only/arXiv bridges. Identifier-free records with the
 same nonblank normalized title merge only within that run. Conflicting arXiv IDs
-or different journal DOIs remain separate inputs for database identity checks.
+remain separate inputs. Every supplied DOI in a merged group reaches the RPC as
+`doi_aliases` and participates in identity checks, even when a preferred DOI is
+chosen for storage. An alias matching a separate stored row fails the group.
 Within a duplicate group, the first source supplies text/URLs, missing values are
 filled, the longest author list and precise date win, categories are combined,
 and numeric signals use their maximum (including explicit zero). Source results

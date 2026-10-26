@@ -13,6 +13,7 @@ declare
   existing public.papers%rowtype;
   merged public.papers%rowtype;
   matches uuid[];
+  dois text[];
   idx integer := 0;
 begin
   if jsonb_typeof(incoming) <> 'array' or jsonb_array_length(incoming) > 100 then
@@ -27,6 +28,10 @@ begin
       candidate := jsonb_populate_record(null::public.papers, item);
       candidate.arxiv_id := nullif(btrim(candidate.arxiv_id), '');
       candidate.doi := nullif(lower(btrim(candidate.doi)), '');
+      dois := array(select distinct lower(btrim(value))
+        from jsonb_array_elements_text(coalesce(item->'doi_aliases', '[]'::jsonb)) value
+        where nullif(btrim(value), '') is not null);
+      dois := array_append(dois, candidate.doi);
       candidate.title := nullif(btrim(candidate.title), '');
       candidate.abstract := nullif(btrim(candidate.abstract), '');
       candidate.html_url := nullif(btrim(candidate.html_url), '');
@@ -40,7 +45,7 @@ begin
       end if;
       select array_agg(p.id) into matches from public.papers p
       where (candidate.arxiv_id is not null and p.arxiv_id = candidate.arxiv_id)
-         or (candidate.doi is not null and lower(btrim(p.doi)) = candidate.doi);
+         or lower(btrim(p.doi)) = any(dois);
       if cardinality(matches) > 1 then
         raise exception 'Ambiguous paper identity';
       end if;
