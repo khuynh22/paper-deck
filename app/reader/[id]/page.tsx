@@ -21,6 +21,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
 
   const paper = await getPaper(id);
   if (!paper) notFound();
+  if (paper.id !== id) redirect(`/reader/${paper.id}`);
 
   const progress = await loadProgress(id);
   const highlights = await loadHighlights(id);

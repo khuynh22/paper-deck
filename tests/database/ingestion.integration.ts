@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { upsertPapers } from "@/lib/corpus/upsert";
+import { resolvePaperId } from "@/lib/db/paperIdentity";
 import type { NormalizedPaper } from "@/lib/types";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -68,4 +69,17 @@ test("incompatible inputs cannot reset a compatible group's strongest signal thr
   const { data, error } = await service.from("papers").select("arxiv_id,citations").eq("doi", "10.test/http-conflicting-group");
   expect(error).toBeNull();
   expect(data).toEqual([{ arxiv_id: "http-compatible-a", citations: 100 }]);
+});
+
+test("old paper IDs resolve through real public HTTP and cannot be rewritten by API roles", async () => {
+  const old = "10000000-0000-0000-0000-000000000002";
+  const canonical = "10000000-0000-0000-0000-000000000001";
+  expect(await resolvePaperId(anon, old)).toBe(canonical);
+  const { data, error } = await anon.from("papers").select("id,authors,citations").eq("id", canonical).single();
+  expect(error).toBeNull();
+  expect(data).toMatchObject({ id: canonical, authors: ["A", "B"], citations: 50 });
+  for (const client of [anon, service]) {
+    const write = await client.from("paper_redirects").insert({ paper_id: crypto.randomUUID(), canonical_id: canonical });
+    expect(write.error?.code).toBe("42501");
+  }
 });

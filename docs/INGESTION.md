@@ -1,97 +1,149 @@
-# Paper import semantics
+# Paper import semantics and release procedure
 
-Imports use the service-role-only `merge_papers` RPC introduced in migration
-`0009_merge_papers.sql`. Apply the migration before releasing these callers.
-Anonymous and authenticated API clients cannot invoke the import RPC.
-If the original 0009 has already been applied, publish the revised function as a
-new corrective migration first; editing an applied migration file does not update
-the database. Production migration history has not been checked by this change.
+Imports use the service-role-only `merge_papers` RPC. Apply `0009_merge_papers.sql`
+and **`20261026061656_enforce_unique_paper_identity.sql` before this app version**.
+The latter replaces the entire RPC, including the fixes to the initially published
+0009. It works when the original 0009 is already applied; editing migration history
+alone does not update an existing database. Production migration history and data
+have not been inspected or changed by this PR.
 
-Nonempty supplied text and categories replace the corresponding stored value.
-Null, undefined, empty text, and empty author/category arrays mean unknown and
-preserve existing metadata. Imports cannot explicitly clear those fields.
-Supplied numeric signals, including zero, replace older values; absent signals
-preserve them. New records use database defaults for absent fields. Adapters must
-not turn absent upstream signals into zero. A shorter author list cannot replace
-a longer stored list. Adapters encode year-only dates as January 1 at midnight
-UTC; such a value cannot replace an existing date. Other supplied timestamps can
-replace older values. This heuristic cannot distinguish a real January 1 midnight
-timestamp from a year-only date without future provenance metadata.
+## Identity repair and compatibility
 
-Before batching, imports deduplicate compatible arXiv and normalized DOI
-identities, including DOI-only/arXiv bridges. Identifier-free records with the
-same nonblank normalized title merge only within that run. Conflicting arXiv IDs
-remain separate inputs. Every supplied DOI in a merged group reaches the RPC as
-`doi_aliases` and participates in identity checks, even when a preferred DOI is
-chosen for storage. An alias matching a separate stored row fails the group.
-Within a duplicate group, the first source supplies text/URLs, missing values are
-filled, the longest author list and precise date win, categories are combined,
-and numeric signals use their maximum (including explicit zero). Source results
-follow registry order regardless of network completion: arXiv, HF, PwC if enabled,
-S2, conferences, Scholar. An independent later import can replace numeric signals
-with zero. Across imports, the database lock determines order.
+The corrective migration atomically consolidates legacy rows sharing a nonblank
+`lower(btrim(doi))`, relinks their stars, reading progress, highlights and cached
+content, then adds a unique index on that normalized DOI. Blank DOIs become null.
+The canonical UUID is the earliest fetched row with an arXiv ID, otherwise the
+earliest fetched row; UUID breaks ties. Metadata keeps populated canonical fields,
+fills absent values, preserves longest authors and precise dates, unions categories,
+and keeps maximum signals. Stars keep each user's earliest save date. Identical
+progress states collapse with their latest timestamp; the position is never chosen
+by maximum or recency when states differ. Highlight UUIDs, ranges and notes survive.
+The selected cache is kept as an intact kind/HTML/page-count tuple.
 
-Identity uses arXiv ID or trimmed, case-insensitive DOI. A DOI-only paper can later
-gain its arXiv ID. If supplied identifiers refer to different existing papers, or
-a legacy DOI has multiple matches, that input fails without deleting, relinking,
-or merging existing papers and their associated user data. Papers without either
-identifier can still be inserted, but cannot be reliably deduplicated on retry;
-titles alone are not used to match stored rows. For one matching arXiv identity,
-a journal DOI replaces a `10.48550/arxiv.*` DOI; otherwise the stored DOI is kept.
-An alternate DOI that identifies another existing row still fails explicitly.
+The entire migration **aborts before any persistent change** if a duplicate group
+has conflicting arXiv IDs, different progress for one user, progress with unknown
+reader kind, incompatible caches used by saved state, missing/invalid state caches,
+PDF source or reader-mode differences, or overlapping same-user highlights across
+the duplicates. Diagnostics list DOI groups and reasons. An unexpected paper foreign
+key also aborts rather than risking cascading deletion. Resolve those groups under
+an explicitly reviewed data policy, then rerun; no policy silently discards a user's
+position or note. The read-only `scripts/audit-ingestion.sql` reports those blockers.
 
-The RPC serializes import transactions with an advisory lock and locks matching
-rows before merging. It reads current fields inside the transaction, so concurrent
-partial imports retain independently supplied metadata. Each batch contains at
-most 100 records to bound lock duration. All ingestion writers must use this RPC;
-direct service-role writes are outside the import concurrency contract. The DOI
-lookup index is non-unique to preserve any legacy duplicates for explicit repair.
-Run `scripts/audit-ingestion.sql` with read-only database access before rollout to
-measure duplicate DOI groups, extra rows, and attached stars, progress, highlights,
-and cached content. It contains only queries inside a read-only transaction and
-rolls back. It is tested against fixtures; it has not been run against production.
-Any repair needs an explicit policy for conflicting identifiers and overlapping
-user progress/highlights. This PR does not automatically delete or relink them.
-A unique DOI index can follow that repair; by itself it does not resolve arXiv/DOI
-identifiers pointing at different rows, so the bounded transaction lock remains.
+Before relinking, full original paper/cache/user-state rows are snapshotted into
+`paperdeck_ingestion_backup.paper_merges`. This schema has no API-role grants and
+its table has RLS without policies. It contains private user data; only a database
+operator may access it. Do not expose it through PostgREST or client code. Keep it
+through release validation and an agreed recovery window; deletion is a separate
+operator decision. The migration takes exclusive locks on all five affected tables
+with a five-second lock acquisition timeout. Budget a maintenance window for the
+actual corpus size and rehearse on a restricted staging copy.
 
-Every deduplicated input returns one outcome: inserted, updated, skipped
-(unchanged), or failed.
-A failed record rolls back its own changes, while other records in the batch can
-succeed. Unexpected transport/RPC responses fail visibly as unconfirmed rather
-than claiming success. The client validates a unique in-range `input_index` for
-every outcome before counting a batch. Unconfirmed batches retain earlier counts
-and do not stop later batches. They may have committed; they are not included in
-confirmed failures. Identified records can be retried; identifier-free records
-may duplicate on retry. Server logs include RPC causes and batch offsets; SQL
-warnings include the failed input index, SQLSTATE, and reason without returning
-internal details to the client.
+Public, read-only `paper_redirects` maps removed UUIDs directly to the canonical
+UUID. Detail/reader/API URLs redirect; API redirects retain options such as `?pdf=1`.
+Progress loads/saves/clears, star changes, highlight loads/creation and idempotent
+highlight retries canonicalize stale IDs while retaining authenticated ownership
+checks. Highlight edits/deletes still use the original highlight UUID. API roles,
+including service_role, cannot rewrite mappings. Target deletion is restricted so
+an old saved link cannot silently lose its mapping.
 
-Search and manual refresh show confirmed counts and any unconfirmed count, mark
-failures visibly, and invalidate both feed and search after ingestion, including
-partial commits. Empty searches have explicit feedback. Cron returns 200 for a
-mixed confirmed record result and 500 for unconfirmed batches, total record
-failure, a thrown error, or source errors with no confirmed results. Operational
-source-health history remains issue #47.
+## Import contract and concurrency
 
-Run `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`.
-With local Supabase Docker running, run `node scripts/test-ingestion-db.mjs`.
-The database harness creates a disposable database in `supabase_db_paper-deck`,
-applies all migrations, tests missing fields, zero, DOI retries, mixed failures,
-outcome counts, DOI conflicts/aliases, whitespace, date/author preservation,
-service-role writes, the read-only audit, and concurrent independent connections,
-then removes only its own database. The disposable database mirrors Supabase's
-service-role table grants. Override `TEST_POSTGRES_CONTAINER` for a different
-local container. It waits until the first transaction holds the lock and observes
-the second session blocked on that advisory lock before releasing the first.
-All sessions settle before forced cleanup. Set `TEST_INGESTION_FAIL_CONCURRENT=1`
-to exercise the error/cleanup path (a nonzero exit is expected).
+Nonempty supplied text and categories replace stored values. Null, undefined,
+blank text and empty arrays mean unknown and preserve metadata. Imports cannot
+explicitly clear those fields. Supplied signals, including zero, replace old
+values; absent signals preserve them. Shorter author lists cannot replace longer
+ones. Adapters encode year-only dates as January 1 at midnight UTC; these cannot
+replace existing dates. This heuristic cannot distinguish a real January 1
+midnight timestamp from year-only data without future provenance metadata.
 
-Set `TEST_INGESTION_HTTP=1` to also run
-`tests/database/ingestion.integration.ts` through the real app caller and
-Supabase client against a disposable PostgREST container. This reuses the existing
-local REST image, network, and gateway JWTs in memory, creates no credentials, and
-binds a temporary `/rest/v1` gateway on loopback. It verifies persisted data,
-explicit zero, mixed outcomes, deduplication, anonymous denial, and batch bounds.
-The temporary API container and database are removed on success or failure.
-These are local integrations; unit tests mock upstream APIs and RPC transport.
+Before batching, compatible arXiv IDs and normalized DOIs merge within the run,
+including DOI/arXiv bridges. Identifier-free records merge by normalized nonblank
+title only within that run. Conflicting arXiv IDs remain separate. Every supplied
+DOI alias reaches the RPC for validation even when another DOI is chosen for
+storage. Registry order supplies preferred text/URLs: arXiv, HF, PwC if enabled,
+S2, conferences, Scholar; missing fields are filled, longest authors/precise dates
+win, categories combine, and signals use their maximum. An independent later
+import may replace signals with zero.
+
+The RPC uses sorted advisory locks for only incoming arXiv/DOI identities, then
+locks all existing matching rows in UUID order. Unrelated identities can import
+concurrently. The unique DOI and arXiv indexes arbitrate insertion races;
+`INSERT ... ON CONFLICT DO NOTHING` reselects and validates the winner, then merges
+current fields. Reselection is bounded to three attempts. Identifiers that point
+to two different existing papers remain a real conflict and fail that input;
+uniqueness does not justify merging unrelated papers. A journal DOI may replace
+an arXiv DOI for a matching arXiv identity; other alternate DOIs preserve the stored
+DOI after validation. Every batch is bounded to 100 inputs. All ingestion writers
+must use the RPC; direct multi-row writers do not share its lock-order contract.
+
+Every deduplicated input returns inserted, updated, skipped (unchanged), or failed.
+Each failed record rolls back independently, leaving successful records intact.
+The caller validates unique in-range input indices before counting a response.
+Transport or malformed RPC responses produce **unconfirmed** counts and retain
+earlier confirmed results; these may have committed and are not confirmed failures.
+Later batches still run. Identified records can be retried; identifier-free
+records may duplicate on retry. Server logs retain RPC causes/batch offsets;
+SQL warnings identify failed input index, SQLSTATE and reason.
+
+Search/refresh show confirmed and unconfirmed counts, mark failures visibly and
+invalidate feed/search after partial commits. Empty search has explicit feedback.
+Cron returns 200 for mixed confirmed record outcomes and 500 for unconfirmed
+batches, total record failure, thrown errors or source errors without confirmed
+results. Source-health history remains issue #47.
+
+## Verification and release gates
+
+Run `pnpm test`, `pnpm typecheck`, `pnpm lint`, and `pnpm build`. Unit/component tests
+mock upstream APIs and RPC transport. With local Supabase Docker running:
+
+```powershell
+node scripts/test-ingestion-db.mjs
+$env:TEST_INGESTION_HTTP='1'
+node scripts/test-ingestion-db.mjs
+```
+
+The harness creates and removes its own disposable databases in
+`supabase_db_paper-deck` (`TEST_POSTGRES_CONTAINER` overrides the container). It
+tests fresh migrations and upgrades from a frozen copy of original 0009 at
+`5575063`, unsafe-group atomic rollback, safe cleanup, every user reference,
+private snapshots, RLS isolation, normalized uniqueness and migration replay.
+It observes same-identity contention, proves unrelated imports finish while the
+first transaction stays open, exercises opposite-order identifiers of existing
+rows, and forces a real unique-conflict race against a direct insert. Set
+`TEST_INGESTION_FAIL_CONCURRENT=1` to test cleanup on failure (nonzero expected).
+
+HTTP mode runs the real app import caller and Supabase client against a disposable
+PostgREST container, reusing existing local gateway JWTs in memory. It creates no
+credentials. It verifies actual stored metadata/zero/partial outcomes, conflicts,
+anonymous denial, batch bounds, public old-ID resolution and mapping-write denial.
+Temporary API/container/database resources are removed on success and failure.
+These are real local integrations; they do not verify live provider APIs,
+production data or an authenticated browser session.
+
+Before merging, follow [PRE-MERGE-CHECKLIST.md](PRE-MERGE-CHECKLIST.md). For rollout:
+
+1. With **read-only** production access, inspect migration history and run
+   `scripts/audit-ingestion.sql`. Obtain a recoverable database backup; rehearse
+   all pending migrations against a restricted staging copy. Any unsafe group,
+   unexpected FK, state loss, or unplanned migration is a release blocker.
+2. Schedule a maintenance pause covering imports/cron, reader cache writes and
+   user saves. Drain old workers/in-flight requests. Stop writes before migration
+   preflight; an earlier audit can become stale. This PR does not automate or
+   authorize that production maintenance or any data repair.
+3. Apply all pending migrations through the corrective migration as a database
+   operator. On lock timeout or an unsafe-group error, keep maintenance paused,
+   inspect the diagnostic and retry only after the blocker is understood. The
+   failing migration rolls back atomically. Never delete user rows to force it.
+4. Verify no normalized duplicate DOI groups, a valid unique index, expected
+   redirects/state counts, and denied API access to the recovery snapshot.
+   Deploy this app version and drain/restart all old workers before reopening
+   traffic. New code requires `paper_redirects`; an old binary cannot safely
+   operate after consolidation. Confirm old UUIDs and stale-tab saves in staging.
+5. Reopen writes only after those gates pass. Monitor failed/unconfirmed counts,
+   SQL identity warnings and reader-save failures. Keep the recovery backup.
+
+Rollback before reopening writes can restore the pre-migration database backup
+and old app together. After new writes, do not blindly restore archived rows or
+an old database snapshot: that would overwrite later user activity. Keep the new
+identity-compatible app, fix forward or reconcile subsequent writes under a
+reviewed recovery plan. Snapshot retention is not a turnkey down migration.

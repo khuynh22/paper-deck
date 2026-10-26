@@ -4,6 +4,7 @@ import { withMutation } from "@/lib/db/mutation";
 import { mutationFailure, type MutationResult } from "@/lib/mutationResult";
 import { revalidatePath } from "next/cache";
 import { serverClient } from "@/lib/db/server";
+import { resolvePaperId } from "@/lib/db/paperIdentity";
 import { currentUser } from "@/lib/auth";
 import type { ProgressRow } from "@/lib/types";
 import { buildProgressRow, type ProgressUpdate } from "@/lib/db/progressRow";
@@ -13,6 +14,7 @@ export async function loadProgress(paperId: string): Promise<ProgressRow | null>
   const user = await currentUser();
   if (!user) return null;
   const db = await serverClient();
+  paperId = await resolvePaperId(db, paperId);
   const { data } = await db
     .from("reading_progress")
     .select("*")
@@ -37,6 +39,7 @@ export async function loadProgress(paperId: string): Promise<ProgressRow | null>
  */
 export async function saveProgress(paperId: string, update: ProgressUpdate): Promise<MutationResult> {
   const result = await withMutation(async (db, userId) => {
+    paperId = await resolvePaperId(db, paperId);
     const row = buildProgressRow(userId, paperId, update, new Date().toISOString());
     const { data, error } = await db.from("reading_progress")
       .upsert(row, { onConflict: "user_id,paper_id" })
@@ -64,6 +67,7 @@ export async function clearProgress(paperId: string): Promise<void> {
   const user = await currentUser();
   if (!user) return;
   const db = await serverClient();
+  paperId = await resolvePaperId(db, paperId);
   await db.from("reading_progress").delete().eq("user_id", user.id).eq("paper_id", paperId);
   revalidatePath("/");
 }

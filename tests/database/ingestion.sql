@@ -1,6 +1,10 @@
+-- Reusable semantics: every assertion rolls back, so this also runs against the
+-- final replacement RPC with legacy repair fixtures already present.
+begin;
 do $$
-declare r record;
+declare r record; initial_count bigint;
 begin
+  select count(*) into initial_count from papers;
   select * into r from merge_papers('[{"arxiv_id":"test-arxiv","doi":"10.test/paper","title":"Enriched","citations":55,"hf_upvotes":7,"pwc_stars":4,"venue":"Conference","abstract":"Abstract","pdf_url":"https://example.com/p.pdf","authors":["A"]}]');
   if r.outcome <> 'inserted' then raise exception 'enriched insert: %', r; end if;
   select * into r from merge_papers('[{"arxiv_id":"test-arxiv","title":"Enriched"}]');
@@ -13,18 +17,15 @@ begin
     raise exception 'explicit zero lost';
   end if;
   select * into r from merge_papers('[{"doi":"10.TEST/PAPER","title":"Enriched"}]');
-  if r.outcome <> 'skipped' or (select count(*) from papers) <> 1 then raise exception 'DOI not idempotent'; end if;
+  if r.outcome <> 'skipped' or (select count(*) from papers) <> initial_count+1 then raise exception 'DOI not idempotent'; end if;
   select count(*) filter (where outcome='inserted') as inserted,
          count(*) filter (where outcome='skipped') as skipped,
          count(*) filter (where outcome='failed') as failed
     into r from merge_papers('[{"doi":"10.test/paper","title":"Enriched"},{"doi":"10.test/new","title":"New"},{"doi":"10.test/bad"}]');
-  if r.inserted <> 1 or r.skipped <> 1 or r.failed <> 1 or (select count(*) from papers) <> 2 then
+  if r.inserted <> 1 or r.skipped <> 1 or r.failed <> 1 or (select count(*) from papers) <> initial_count+2 then
     raise exception 'mixed batch outcomes do not match stored rows: %', r;
   end if;
   if not exists(select 1 from papers where doi='10.test/new') then raise exception 'new row missing'; end if;
-  insert into papers(doi,title) values('10.test/ambiguous','Legacy A'),('10.TEST/AMBIGUOUS','Legacy B');
-  select * into r from merge_papers('[{"doi":"10.test/ambiguous","title":"No destructive merge"}]');
-  if r.outcome <> 'failed' then raise exception 'ambiguous identity accepted'; end if;
   if has_function_privilege('anon','public.merge_papers(jsonb)','execute') or has_function_privilege('authenticated','public.merge_papers(jsonb)','execute') then
     raise exception 'private RPC exposed';
   end if;
@@ -92,3 +93,5 @@ begin
   if cardinality(problems) > 0 then raise exception 'regressions: %', problems; end if;
 end;
 $$;
+
+rollback;
