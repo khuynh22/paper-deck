@@ -45,3 +45,46 @@ begin
 end;
 $$;
 reset role;
+
+do $$
+declare
+  r record;
+  problems text[] := '{}';
+begin
+  select * into r from merge_papers('[{"doi":" 10.TEST/Trim ","title":" Trimmed ","abstract":"  ","html_url":"  ","pdf_url":" ","source_url":" ","venue":"  "}]');
+  if r.outcome <> 'inserted' or not exists(select 1 from papers where doi='10.test/trim' and title='Trimmed' and abstract is null and html_url is null and pdf_url is null and source_url is null and venue is null) then
+    problems := array_append(problems, 'insert normalization');
+  end if;
+  select * into r from merge_papers('[{"doi":"10.test/trim","title":" Trimmed ","html_url":"  "}]');
+  if r.outcome <> 'skipped' then problems := array_append(problems, 'normalized retry'); end if;
+
+  perform merge_papers('[{"arxiv_id":"test-alias","doi":"10.48550/arXiv.test-alias","title":"Alias"}]');
+  select * into r from merge_papers('[{"arxiv_id":"test-alias","doi":"10.test/journal","title":"Alias"}]');
+  if r.outcome <> 'updated' or not exists(select 1 from papers where arxiv_id='test-alias' and doi='10.test/journal') then
+    problems := array_append(problems, 'journal DOI enrichment');
+  end if;
+  select * into r from merge_papers('[{"arxiv_id":"test-alias","doi":"10.48550/arxiv.test-alias","title":"Alias"}]');
+  if r.outcome <> 'skipped' or not exists(select 1 from papers where arxiv_id='test-alias' and doi='10.test/journal') then
+    problems := array_append(problems, 'arxiv DOI retry');
+  end if;
+
+  perform merge_papers('[{"arxiv_id":"test-rich","title":"Rich","authors":["A","B","C"],"published_at":"2026-07-15T10:30:00Z"}]');
+  select * into r from merge_papers('[{"arxiv_id":"test-rich","title":"Rich","authors":["A"],"published_at":"2025-01-01T00:00:00Z"}]');
+  if r.outcome <> 'skipped' or not exists(select 1 from papers where arxiv_id='test-rich' and authors=array['A','B','C'] and published_at='2026-07-15T10:30:00Z') then
+    problems := array_append(problems, 'richer authors/date preservation');
+  end if;
+  select * into r from merge_papers('[{"arxiv_id":"test-rich","title":"Rich","published_at":"2026-07-16T10:30:00Z"}]');
+  if r.outcome <> 'updated' then problems := array_append(problems, 'precise date replacement'); end if;
+
+  perform merge_papers('[{"arxiv_id":"test-other","doi":"10.test/occupied","title":"Other"}]');
+  select * into r from merge_papers('[{"arxiv_id":"test-alias","doi":"10.test/occupied","title":"Conflict"}]');
+  if r.outcome <> 'failed' or not exists(select 1 from papers where arxiv_id='test-other' and title='Other') then
+    problems := array_append(problems, 'conflicting existing identities');
+  end if;
+  select * into r from merge_papers('[{"arxiv_id":"different-arxiv","doi":"10.test/occupied","title":"Conflict"}]');
+  if r.outcome <> 'failed' then problems := array_append(problems, 'conflicting arxiv identities'); end if;
+  select * into r from merge_papers('[{"title":"Bad date","published_at":"not-a-date"},{"title":"After bad date","doi":"10.test/after-bad-date"}]') where input_index=1;
+  if r.outcome <> 'inserted' then problems := array_append(problems, 'bad timestamp isolation'); end if;
+  if cardinality(problems) > 0 then raise exception 'regressions: %', problems; end if;
+end;
+$$;

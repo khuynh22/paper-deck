@@ -27,7 +27,15 @@ begin
       candidate := jsonb_populate_record(null::public.papers, item);
       candidate.arxiv_id := nullif(btrim(candidate.arxiv_id), '');
       candidate.doi := nullif(lower(btrim(candidate.doi)), '');
-      if candidate.title is null or btrim(candidate.title) = '' then
+      candidate.title := nullif(btrim(candidate.title), '');
+      candidate.abstract := nullif(btrim(candidate.abstract), '');
+      candidate.html_url := nullif(btrim(candidate.html_url), '');
+      candidate.pdf_url := nullif(btrim(candidate.pdf_url), '');
+      candidate.source_url := nullif(btrim(candidate.source_url), '');
+      candidate.venue := nullif(btrim(candidate.venue), '');
+      candidate.authors := array(select btrim(value) from unnest(candidate.authors) value where nullif(btrim(value), '') is not null);
+      candidate.categories := array(select btrim(value) from unnest(candidate.categories) value where nullif(btrim(value), '') is not null);
+      if candidate.title is null then
         raise exception 'Missing title';
       end if;
       select array_agg(p.id) into matches from public.papers p
@@ -38,24 +46,29 @@ begin
       end if;
       if cardinality(matches) = 1 then
         select * into existing from public.papers where id = matches[1] for update;
-        if (candidate.arxiv_id is not null and existing.arxiv_id is not null
-            and candidate.arxiv_id <> existing.arxiv_id)
-           or (candidate.doi is not null and existing.doi is not null
-            and candidate.doi <> lower(btrim(existing.doi))) then
+        if candidate.arxiv_id is not null and existing.arxiv_id is not null
+            and candidate.arxiv_id <> existing.arxiv_id then
           raise exception 'Conflicting paper identity';
         end if;
         merged := existing;
         merged.arxiv_id := coalesce(candidate.arxiv_id, existing.arxiv_id);
-        merged.doi := coalesce(candidate.doi, existing.doi);
+        merged.doi := case
+          when lower(btrim(existing.doi)) like '10.48550/arxiv.%'
+            and candidate.doi not like '10.48550/arxiv.%' then candidate.doi
+          else coalesce(existing.doi, candidate.doi) end;
         merged.title := candidate.title;
-        merged.authors := case when cardinality(candidate.authors) > 0 then candidate.authors else existing.authors end;
+        merged.authors := case when cardinality(candidate.authors) > 0
+          and cardinality(candidate.authors) >= cardinality(existing.authors) then candidate.authors else existing.authors end;
         merged.categories := case when cardinality(candidate.categories) > 0 then candidate.categories else existing.categories end;
-        merged.abstract := coalesce(nullif(btrim(candidate.abstract), ''), existing.abstract);
-        merged.html_url := coalesce(nullif(btrim(candidate.html_url), ''), existing.html_url);
-        merged.pdf_url := coalesce(nullif(btrim(candidate.pdf_url), ''), existing.pdf_url);
-        merged.source_url := coalesce(nullif(btrim(candidate.source_url), ''), existing.source_url);
-        merged.published_at := coalesce(candidate.published_at, existing.published_at);
-        merged.venue := coalesce(nullif(btrim(candidate.venue), ''), existing.venue);
+        merged.abstract := coalesce(candidate.abstract, existing.abstract);
+        merged.html_url := coalesce(candidate.html_url, existing.html_url);
+        merged.pdf_url := coalesce(candidate.pdf_url, existing.pdf_url);
+        merged.source_url := coalesce(candidate.source_url, existing.source_url);
+        -- Adapters encode year-only dates as January 1 at midnight UTC.
+        merged.published_at := case when existing.published_at is not null
+          and candidate.published_at = date_trunc('year', candidate.published_at, 'UTC')
+          then existing.published_at else coalesce(candidate.published_at, existing.published_at) end;
+        merged.venue := coalesce(candidate.venue, existing.venue);
         merged.hf_upvotes := coalesce(candidate.hf_upvotes, existing.hf_upvotes);
         merged.pwc_stars := coalesce(candidate.pwc_stars, existing.pwc_stars);
         merged.citations := coalesce(candidate.citations, existing.citations);
@@ -89,7 +102,7 @@ begin
         outcome := 'inserted';
       end if;
     exception when others then
-      -- Roll back this record only; do not expose internal database details.
+      raise warning 'merge_papers input % failed [%]: %', input_index, sqlstate, sqlerrm;
       paper_id := null;
       outcome := 'failed';
     end;
