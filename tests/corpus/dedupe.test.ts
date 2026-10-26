@@ -79,3 +79,56 @@ test("venue survives regardless of merge order", () => {
   expect(merged).toHaveLength(1);
   expect(merged[0].venue).toBe("ICML 2025");
 });
+
+test("matches a normalized DOI across DOI-only and arxiv records", () => {
+  const merged = dedupe([
+    base({ doi: " 10.TEST/Paper ", signals: { citations: 12 } }),
+    base({ arxivId: "a", doi: "10.test/paper", authors: ["A", "B"] }),
+  ]);
+  expect(merged).toHaveLength(1);
+  expect(merged[0]).toMatchObject({ arxivId: "a", doi: "10.test/paper", authors: ["A", "B"], signals: { citations: 12 } });
+});
+
+test("does not hide conflicting arxiv identities sharing a DOI", () => {
+  expect(dedupe([
+    base({ arxivId: "a", doi: "10.test/shared" }),
+    base({ arxivId: "b", doi: "10.test/shared" }),
+    base({ doi: "10.test/shared" }),
+  ])).toHaveLength(3);
+});
+
+test("a DOI bridge merges previously separate compatible groups", () => {
+  expect(dedupe([
+    base({ arxivId: "a", signals: { hfUpvotes: 7 } }),
+    base({ doi: "10.test/bridge", signals: { citations: 9 } }),
+    base({ arxivId: "a", doi: "10.test/bridge" }),
+  ])).toMatchObject([{ arxivId: "a", doi: "10.test/bridge", signals: { hfUpvotes: 7, citations: 9 } }]);
+});
+
+test("keeps full authors and a precise date when the preferred source is partial", () => {
+  const [paper] = dedupe([
+    base({ arxivId: "a", authors: ["A"], publishedAt: "2026-01-01T00:00:00Z" }),
+    base({ arxivId: "a", authors: ["A", "B"], publishedAt: "2026-07-15T10:30:00Z" }),
+  ]);
+  expect(paper.authors).toEqual(["A", "B"]);
+  expect(paper.publishedAt).toBe("2026-07-15T10:30:00Z");
+});
+
+test("blank titles do not collapse unrelated invalid records", () => {
+  expect(dedupe([base({ title: "" }), base({ title: " " })])).toHaveLength(2);
+});
+
+test("different journal DOIs remain visible to database identity checks", () => {
+  expect(dedupe([
+    base({ arxivId: "a", doi: "10.test/first" }),
+    base({ arxivId: "a", doi: "10.test/other-existing-paper" }),
+  ])).toHaveLength(2);
+});
+
+test("blank optional fields cannot hide richer duplicate metadata", () => {
+  const [paper] = dedupe([
+    base({ arxivId: "a", abstract: "  ", authors: [" ", "  "], pdfUrl: " " }),
+    base({ arxivId: "a", abstract: "Full abstract", authors: ["A"], pdfUrl: "https://example.test/p.pdf" }),
+  ]);
+  expect(paper).toMatchObject({ abstract: "Full abstract", authors: ["A"], pdfUrl: "https://example.test/p.pdf" });
+});

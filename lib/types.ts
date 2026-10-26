@@ -7,8 +7,8 @@ export type SourceId =
   | "conferences";
 
 /** Adapter metadata: null/empty means unknown, not a request to clear stored data.
- * Supplied non-empty values replace existing values on import; signals preserve
- * explicit zero. Imports cannot clear metadata; that requires a separate edit.
+ * Supplied values follow docs/INGESTION.md: signals preserve explicit zero,
+ * shorter authors/year-only dates preserve enrichment. Clearing requires an edit.
  */
 export interface NormalizedPaper {
   arxivId: string | null;

@@ -7,7 +7,6 @@ import { aggregate } from "@/lib/sources";
 import { upsertPapers, type IngestionResult } from "@/lib/corpus/upsert";
 
 export interface RefreshResult {
-  upserted: number;
   ingestion: IngestionResult;
   errors: { id: string; error: string }[];
 }
@@ -18,7 +17,11 @@ export async function triggerRefresh(): Promise<RefreshResult> {
   if (!isOwner(user?.email)) throw new Error("owner only");
 
   const { results, errors } = await aggregate();
-  const ingestion = await upsertPapers(results);
-  revalidatePath("/feed");
-  return { upserted: ingestion.inserted + ingestion.updated, ingestion, errors };
+  try {
+    const ingestion = await upsertPapers(results);
+    return { ingestion, errors };
+  } finally {
+    revalidatePath("/feed");
+    revalidatePath("/search");
+  }
 }
