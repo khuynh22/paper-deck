@@ -1,8 +1,9 @@
 # GitHub code review
 
 Claude PR review is disabled because the Claude subscription was canceled. Its
-workflow was disabled in GitHub and removed from this branch. Existing CI,
-Dependabot, repository rules, and code-owner assignments remain in place.
+workflow remains in `.github/workflows/claude-review.yml`, with an unconditional
+`false` guard on the review job. Existing CI, Dependabot, repository rules, and
+code-owner assignments remain in place.
 
 ## Codex through ChatGPT
 
