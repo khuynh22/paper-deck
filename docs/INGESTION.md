@@ -2,6 +2,8 @@
 
 Imports use the service-role-only `merge_papers` RPC. Apply `0009_merge_papers.sql`
 and **`20261026061656_enforce_unique_paper_identity.sql` before this app version**.
+Fresh hosted databases also require
+`20261103070847_grant_application_table_access.sql` for API table access.
 The latter replaces the entire RPC, including the fixes to the initially published
 0009. It works when the original 0009 is already applied; editing migration history
 alone does not update an existing database. Production migration history and data

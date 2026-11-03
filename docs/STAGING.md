@@ -46,6 +46,11 @@ only on empty staging. The `0008` mark reset had no rows to change. `0009` and
 Production's history was not repaired. Do not repeat this reconciliation on a
 populated database or assume production is ready for an automatic push.
 
+Apply `20261103070847_grant_application_table_access.sql` as well. Fresh hosted
+branches do not inherit API table grants that were absent from old migration
+files. It grants public corpus reads, authenticated user-state operations under
+RLS, and service-role corpus/cache operations without changing the RLS policies.
+
 Before a future migration, verify that the linked database reference is staging,
 inspect the migration plan, then apply only the intended changes. Do not merge
 the Supabase branch or enable automatic production migrations as part of PR tests.
