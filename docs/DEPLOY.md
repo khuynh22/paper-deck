@@ -9,7 +9,7 @@ Both have free tiers.
 2. Apply the schema. Either:
    - Link the CLI and push: `npx supabase link --project-ref <ref>` then
      `npx supabase db push`, **or**
-   - Paste `supabase/migrations/0001_init.sql` into the Supabase SQL editor and run it.
+   - Apply every file in `supabase/migrations` in order through the SQL editor.
 3. From **Project Settings → API**, copy:
    - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon` / publishable key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -27,7 +27,10 @@ Both have free tiers.
 ## 3. Deploy to Vercel
 
 1. Import the repo at <https://vercel.com>.
-2. Set Environment Variables (Production + Preview):
+2. Set separate environment values for Production and Preview. Production uses
+   the production database; every Preview uses the isolated staging database.
+   Never assign production database credentials to Preview or Development.
+   See [STAGING.md](STAGING.md) for the configured staging branch and checks.
 
    | Variable | Required | Notes |
    |---|---|---|
@@ -35,6 +38,7 @@ Both have free tiers.
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | |
    | `NEXT_PUBLIC_SITE_URL` | recommended | absolute origin (e.g. `https://ppdeck.com`) for share/OG links; falls back to the Vercel prod domain, then `localhost` |
    | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | server-only; powers cron refresh + reader cache |
+   | `SUPABASE_STAGING_PROJECT_REF` | Preview only | required staging database reference; preview builds reject production or a mismatched URL |
    | `OWNER_EMAILS` | ✅ | comma-separated; enables manual refresh + Google Scholar |
    | `CRON_SECRET` | ✅ | Vercel Cron sends it as `Authorization: Bearer <CRON_SECRET>` |
    | `SEMANTIC_SCHOLAR_API_KEY` | optional | needed for real citation volume |
