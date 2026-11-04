@@ -22,7 +22,7 @@
     "react-dom": "19.3.0",
     "react-pdf": "^10.4.1",
     "sanitize-html": "^2.18.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
