@@ -73,12 +73,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       const result = await loadReaderHtml(paper.arxiv_id);
       if (result.kind === "html") {
         try {
-          serviceClient()
+          const { error: cacheError } = await serviceClient()
             .from("paper_content")
-            .upsert({ paper_id: id, kind: "html", sanitized_html: result.html })
-            .then(() => {});
-        } catch {
-          // no service key configured — serve uncached
+            .upsert({ paper_id: id, kind: "html", sanitized_html: result.html });
+          if (cacheError) console.error("reader: html cache write failed", cacheError);
+        } catch (cacheError) {
+          console.error("reader: html cache write failed", cacheError);
         }
         return NextResponse.json({ kind: "html", html: result.html, pdfUrl: paper.pdf_url, title });
       }
