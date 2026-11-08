@@ -51,7 +51,9 @@ abort the whole migration. Never discard user state to force it through.
    retained in private `paperdeck_ingestion_backup.paper_merges`; API roles must
    remain unable to access that schema.
 4. Deploy the new app and drain old workers before reopening writes. An old app
-   cannot safely operate after consolidation. Verify old detail/reader URLs, PDF
+   cannot safely operate after consolidation. Reader tabs loaded before the stable
+   HTTP save transport need one reload; preserve unsaved edits before reloading.
+   Verify old detail/reader URLs, PDF
    options and a reader tab opened before the upgrade: progress, star changes and
    pending highlight retries must use the canonical paper without losing edits.
 

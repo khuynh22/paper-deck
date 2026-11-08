@@ -30,6 +30,13 @@ test("expired authentication keeps the edit available for sign-in and retry", as
   expect(await updateHighlightNote(ID, "Unsaved note")).toMatchObject({ ok: false, code: "auth" });
 });
 
+test("a rejected edit keeps its non-retryable validation result", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+    ok: false, code: "validation", message: "Select a shorter passage and try again.",
+  }), { status: 400 })));
+  expect(await createHighlight(input, ID)).toMatchObject({ ok: false, code: "validation" });
+});
+
 test("acknowledges a progress save without depending on a serialized undefined field", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true }))));
   expect(await saveProgress(ID, { scrollPct: 0.2 })).toEqual({ ok: true, data: undefined });

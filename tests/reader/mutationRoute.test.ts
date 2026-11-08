@@ -37,6 +37,14 @@ test("requires an origin even when a request carries session cookies", async () 
   expect(actions.saveProgress).not.toHaveBeenCalled();
 });
 
+test("an oversized selection explains how to recover without retrying the same input", async () => {
+  const response = await POST(request({ operation: "highlight", requestId: ID,
+    input: { paperId: ID, blockAnchor: "0", startOffset: 0, endOffset: 1001, quote: "x".repeat(1001) } }));
+  expect(response.status).toBe(400);
+  expect(await response.json()).toMatchObject({ ok: false, code: "validation", message: "Select a shorter passage and try again." });
+  expect(actions.createHighlight).not.toHaveBeenCalled();
+});
+
 test.each([
   { ...valid, update: { scrollPct: 1.2 } },
   { operation: "note", id: ID, note: "x".repeat(2001) },

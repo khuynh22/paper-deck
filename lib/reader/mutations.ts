@@ -31,8 +31,11 @@ async function write<T>(mutation: ReaderMutation, dataSchema: z.ZodType<T>): Pro
       keepalive: true,
       body: JSON.stringify(mutation),
     });
-    if (!response.ok) return mutationFailure({ status: response.status });
-    const acknowledgement = acknowledgementSchema.safeParse(await response.json());
+    const acknowledgement = acknowledgementSchema.safeParse(await response.json().catch(() => null));
+    if (!response.ok) {
+      return acknowledgement.success && !acknowledgement.data.ok
+        ? acknowledgement.data : mutationFailure({ status: response.status });
+    }
     if (!acknowledgement.success) return mutationFailure();
     if (!acknowledgement.data.ok) return acknowledgement.data;
     const data = dataSchema.safeParse(acknowledgement.data.data);

@@ -33,7 +33,10 @@ export async function POST(request: NextRequest) {
   }
   const mutation = readerMutationSchema.safeParse(body);
   if (!mutation.success) {
-    return reply({ ok: false, code: "validation", message: "Invalid save request." }, 400);
+    const oversizedQuote = mutation.error.issues.some(issue =>
+      issue.code === "too_big" && issue.path[0] === "input" && issue.path[1] === "quote");
+    return reply({ ok: false, code: "validation", message: oversizedQuote
+      ? "Select a shorter passage and try again." : "Invalid save request." }, 400);
   }
 
   try {
