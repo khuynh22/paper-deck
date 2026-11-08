@@ -3,6 +3,9 @@
 PaperDeck deploys as a Next.js app on **Vercel** with a hosted **Supabase** project.
 Both have free tiers.
 
+For an existing database, follow the [production upgrade](INGESTION.md#production-upgrade)
+before deploying.
+
 ## 1. Create the Supabase project
 
 1. Create a project at <https://supabase.com>.
@@ -30,7 +33,7 @@ Both have free tiers.
 2. Set separate environment values for Production and Preview. Production uses
    the production database; every Preview uses the isolated staging database.
    Never assign production database credentials to Preview or Development.
-   See [STAGING.md](STAGING.md) for the configured staging branch and checks.
+   See [Staging](#staging) for the configured branch and URL.
 
    | Variable | Required | Notes |
    |---|---|---|
@@ -46,6 +49,31 @@ Both have free tiers.
 
 3. Deploy. The first deploy reads `vercel.json` and registers the cron job.
 
+## Staging
+
+| Vercel environment | Supabase reference |
+| --- | --- |
+| Production | `rrbmucsbqsoyspsoftvl` |
+| Preview | `xsnrhsrypqpoqcclhprl` (persistent `staging` branch) |
+
+Use <https://paper-deck-staging-khuynh22s-projects.vercel.app> for manual checks.
+The alias selects a deployment; update it when choosing a newer staging build.
+All previews share disposable staging data. Production users and data were not
+copied; sign in separately and seed papers through Search arXiv or owner Refresh.
+Protected previews also require Vercel team access.
+
+Preview uses its own Supabase URL, anon key, server service-role key and
+`SUPABASE_STAGING_PROJECT_REF=xsnrhsrypqpoqcclhprl`. Builds reject a production or
+mismatched URL. Configure staging OAuth/email credentials and redirect URLs
+separately. `OWNER_EMAILS` enables manual Refresh; Preview's empty `CRON_SECRET`
+denies scheduled refreshes. Environment changes affect new deployments only;
+older previews retain their previous credentials.
+
+Before testing, check browser Supabase requests use `xsnrhsrypqpoqcclhprl`.
+Verify repeat imports, Library, HTML/PDF resume, marks, notes, failed-save retry
+and isolation between two accounts. Keep production checks read-only and never
+merge the Supabase staging branch as part of PR testing.
+
 ## 4. Seed + keep fresh
 
 - **Cron:** `vercel.json` schedules `GET /api/cron/refresh` daily (`0 6 * * *`).
@@ -55,7 +83,7 @@ Both have free tiers.
   > - **Supabase `pg_cron`** + `pg_net` to call the endpoint, or
   > - a **GitHub Actions** scheduled workflow (`on: schedule: - cron: "0 * * * *"`)
   >   running `curl -H "Authorization: Bearer $CRON_SECRET" https://<domain>/api/cron/refresh`.
-- **Manual:** sign in as an `OWNER_EMAILS` user and click **Refresh** on `/feed`.
+- **Manual:** sign in as an `OWNER_EMAILS` user and click **Refresh** on `/`.
 
 ## Source notes
 
