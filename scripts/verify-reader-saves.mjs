@@ -17,7 +17,7 @@ const db = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const email = `save-check-${randomUUID()}@example.test`;
 const password = randomUUID();
 const paperId = randomUUID();
-const actionRoute = `**/reader/${paperId}`;
+const actionRoute = "**/api/reader/mutations";
 let userId;
 let browser;
 
@@ -194,7 +194,7 @@ async function verify() {
   await context.clearCookies();
   let actionPosts = 0;
   const countAction = (request) => {
-    if (request.method() === "POST" && request.url().includes(`/reader/${paperId}`)) {
+    if (request.method() === "POST" && new URL(request.url()).pathname === "/api/reader/mutations") {
       actionPosts += 1;
     }
   };

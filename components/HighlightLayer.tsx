@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { createHighlight, deleteHighlight, updateHighlightNote } from "@/app/actions/highlights";
+import { createHighlight, deleteHighlight, updateHighlightNote } from "@/lib/reader/mutations";
 import {
   offsetsFromSelection,
   decorateBlock,

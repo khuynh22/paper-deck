@@ -4,14 +4,15 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 const { saveProgress } = vi.hoisted(() => ({
   saveProgress: vi.fn<(...args: [string, Record<string, unknown>]) => Promise<unknown>>(),
 }));
-vi.mock("@/app/actions/progress", () => ({ saveProgress }));
 
-vi.mock("@/app/actions/highlights", () => ({
-  loadHighlights: vi.fn(async () => []),
+vi.mock("@/lib/reader/mutations", () => ({
+  saveProgress,
   createHighlight: vi.fn(),
   updateHighlightNote: vi.fn(async () => {}),
   deleteHighlight: vi.fn(async () => {}),
 }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 import { HtmlReader } from "@/components/HtmlReader";
 import type { ProgressRow } from "@/lib/types";
