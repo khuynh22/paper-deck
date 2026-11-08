@@ -45,11 +45,12 @@ async function selectText(page, block, start, end) {
   }, { block, start, end });
 }
 
-async function failNextAction(page, { commit = false, delayMs = 0, bodyIncludes } = {}) {
+async function failNextAction(page, { commit = false, delayMs = 0, bodyIncludes, operation } = {}) {
   let intercepted = false;
   const handler = async (route) => {
     const request = route.request();
     if (intercepted || request.method() !== "POST" ||
+        (operation && request.postDataJSON()?.operation !== operation) ||
         (bodyIncludes && !request.postData()?.includes(bodyIncludes))) {
       await route.continue();
       return;
@@ -165,7 +166,7 @@ async function verify() {
   await selectText(page, 0, 10, 16);
   await page.getByRole("button", { name: "Highlight", exact: true }).waitFor();
   // Commit the insert, then discard its response. Retry must recover the same UUID.
-  const stopDroppingCreation = await failNextAction(page, { commit: true });
+  const stopDroppingCreation = await failNextAction(page, { commit: true, operation: "highlight" });
   await page.getByRole("button", { name: "Highlight", exact: true }).click();
   await page.getByRole("alert").filter({ hasText: /Couldn’t save/ }).waitFor();
   assert.equal(check(await db.from("highlights").select("*").eq("user_id", userId)).length, 1,
@@ -178,7 +179,7 @@ async function verify() {
 
   // Cancel deletes a committed insert before another overlapping range is selected.
   await selectText(page, 1, 0, 5);
-  const stopDroppingCancel = await failNextAction(page, { commit: true });
+  const stopDroppingCancel = await failNextAction(page, { commit: true, operation: "highlight" });
   await page.getByRole("button", { name: "Highlight", exact: true }).click();
   await page.getByRole("alert").filter({ hasText: /Couldn’t save/ }).waitFor();
   assert.equal(check(await db.from("highlights").select("id").eq("user_id", userId)).length, 2);
@@ -208,17 +209,22 @@ async function verify() {
   assert.equal(actionPosts, postsBeforeCancel, "Cancel after auth failure must not request a delete");
   page.off("request", countAction);
   await context.addCookies(authCookies);
+  const pendingSignIn = page.getByRole("alert").filter({ hasText: /sign in again/i });
+  if (await pendingSignIn.count()) {
+    await pendingSignIn.getByRole("button", { name: "Retry", exact: true }).click();
+    await pendingSignIn.waitFor({ state: "hidden" });
+  }
   console.log("PASS: Cancel after auth failure closes without a delete request");
 
   await page.locator("mark.pd-highlight").click();
   await page.getByRole("textbox", { name: "Note" }).fill("Persistent research note");
-  const stopFailingNote = await failNextAction(page, { delayMs: 700 });
+  const stopFailingNote = await failNextAction(page, { delayMs: 700, operation: "note" });
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("status").filter({ hasText: /Saving/ }).waitFor();
   assert(await page.getByRole("button", { name: "Save", exact: true }).isDisabled());
   await page.getByRole("alert").filter({ hasText: /Couldn’t save/ }).waitFor();
   assert.equal(await page.getByRole("textbox", { name: "Note" }).inputValue(), "Persistent research note");
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.locator("[data-highlight-controls]").getByRole("button", { name: "Retry", exact: true }).click();
   await page.getByRole("textbox", { name: "Note" }).waitFor({ state: "hidden" });
   assert.equal(check(await db.from("highlights").select("note").eq("user_id", userId).single()).note,
     "Persistent research note");
@@ -241,7 +247,7 @@ async function verify() {
   console.log("PASS: reload and a second mobile browser context restore mark and note");
 
   await page.locator("mark.pd-highlight").click();
-  const stopFailingDelete = await failNextAction(page);
+  const stopFailingDelete = await failNextAction(page, { operation: "delete" });
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await page.getByRole("alert").filter({ hasText: /Couldn’t save/ }).waitFor();
   assert.equal(await page.locator("mark.pd-highlight").count(), 1);
