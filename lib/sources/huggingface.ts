@@ -39,7 +39,7 @@ export function parseHfDaily(json: unknown): NormalizedPaper[] {
         pdfUrl: `https://arxiv.org/pdf/${arxivId}`,
         sourceUrl: `https://huggingface.co/papers/${arxivId}`,
         publishedAt: item.publishedAt ?? p.publishedAt ?? null,
-        signals: { hfUpvotes: p.upvotes ?? 0 },
+        signals: { hfUpvotes: p.upvotes },
       };
     })
     .filter((p): p is NormalizedPaper => p !== null);

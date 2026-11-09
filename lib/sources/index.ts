@@ -39,18 +39,18 @@ export function sources(): Source[] {
 export async function runSources(
   list: Pick<Source, "id" | "run">[],
 ): Promise<AggregateResult> {
-  const results: NormalizedPaper[] = [];
   const errors: { id: string; error: string }[] = [];
-  await Promise.all(
+  const batches = await Promise.all(
     list.map(async (s) => {
       try {
-        results.push(...(await s.run()));
+        return await s.run();
       } catch (err) {
         errors.push({ id: s.id, error: err instanceof Error ? err.message : String(err) });
+        return [];
       }
     }),
   );
-  return { results, errors };
+  return { results: batches.flat(), errors };
 }
 
 /** Pull from every enabled source. */
