@@ -23,3 +23,10 @@ test("owner refresh delegates to guarded workflow and refreshes feed state", asy
   expect(mocks.run).toHaveBeenCalledWith("manual");
   expect(mocks.revalidate).toHaveBeenCalledWith("/");
 });
+
+test("a failed refresh still invalidates owner health and discovery views", async () => {
+  mocks.user.mockResolvedValue({ email: "owner@example.test" });
+  mocks.run.mockRejectedValue(new Error("Could not confirm refresh completion."));
+  await expect(triggerRefresh()).rejects.toThrow("Could not confirm");
+  expect(mocks.revalidate.mock.calls).toEqual([["/"], ["/feed"], ["/search"]]);
+});

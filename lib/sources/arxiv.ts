@@ -1,5 +1,5 @@
-import { sourceFetch } from "./http";
-import { XMLParser } from "fast-xml-parser";
+import { sourceFetch, SourceError } from "./http";
+import { XMLParser, XMLValidator } from "fast-xml-parser";
 import type { NormalizedPaper } from "@/lib/types";
 
 const parser = new XMLParser({
@@ -31,8 +31,16 @@ function cleanArxivId(rawId: string): string | null {
 
 /** Parse an arXiv Atom feed (string) into normalized papers. Pure + testable. */
 export function parseArxivAtom(xml: string): NormalizedPaper[] {
+  if (XMLValidator.validate(xml) !== true) throw new SourceError("format");
   const parsed = parser.parse(xml);
+  if (!parsed || !("feed" in parsed) ||
+      (parsed.feed !== "" && (parsed.feed === null || typeof parsed.feed !== "object"))) {
+    throw new SourceError("format");
+  }
   const entries = toArray<Record<string, unknown>>(parsed?.feed?.entry);
+
+  if (entries.some(entry => !entry || typeof entry !== "object" ||
+      String(entry.id ?? "").includes("/api/errors"))) throw new SourceError("format");
 
   return entries.map((e) => {
     const arxivId = cleanArxivId(String(e.id ?? ""));

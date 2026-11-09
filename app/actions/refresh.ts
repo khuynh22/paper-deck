@@ -10,8 +10,11 @@ export async function triggerRefresh(): Promise<RefreshResult> {
   const user = await currentUser();
   if (!isOwner(user?.email)) throw new Error("owner only");
 
-  const result = await runRefresh("manual");
-  revalidatePath("/");
-  revalidatePath("/feed");
-  return result;
+  try {
+    return await runRefresh("manual");
+  } finally {
+    revalidatePath("/");
+    revalidatePath("/feed");
+    revalidatePath("/search");
+  }
 }

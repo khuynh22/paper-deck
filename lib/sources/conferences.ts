@@ -1,4 +1,4 @@
-import { sourceFetch, sourceWarning, sourceSuccess } from "./http";
+import { sourceFetch, sourceJson, sourceWarning, sourceSuccess } from "./http";
 import { env } from "@/lib/env";
 import type { NormalizedPaper } from "@/lib/types";
 import { parseS2 } from "./semanticscholar";
@@ -59,7 +59,7 @@ export async function fetchConferences(years: string = recentYears()): Promise<N
       `&year=${years}&sort=${encodeURIComponent("citationCount:desc")}&fields=${FIELDS}`;
     try {
       const res = await sourceFetch(url, { headers });
-      const top = parseS2(await res.json()).slice(0, MAX_PER_VENUE);
+      const top = parseS2(await sourceJson(res, "data")).slice(0, MAX_PER_VENUE);
       all.push(...labelConference(top, v.label));
       sourceSuccess();
     } catch (error) {

@@ -6,8 +6,6 @@ import { searchArxiv } from "@/lib/sources/arxiv";
 import { upsertPapers, type IngestionResult } from "@/lib/corpus/upsert";
 
 export interface ArxivSearchResult {
-  /** Newly inserted papers; detailed outcomes also report updates/failures. */
-  added: number;
   ingestion?: IngestionResult;
   error: string | null;
 }
@@ -19,17 +17,21 @@ export interface ArxivSearchResult {
  */
 export async function searchArxivAction(query: string): Promise<ArxivSearchResult> {
   const q = query.trim();
-  if (!q) return { added: 0, error: null };
+  if (!q) return { error: null };
 
   const user = await currentUser();
-  if (!user) return { added: 0, error: "Sign in to pull new papers from arXiv." };
+  if (!user) return { error: "Sign in to pull new papers from arXiv." };
 
   try {
     const found = await searchArxiv(q);
-    const ingestion = await upsertPapers(found);
-    revalidatePath("/search");
-    return { added: ingestion.inserted, ingestion, error: null };
+    try {
+      const ingestion = await upsertPapers(found);
+      return { ingestion, error: null };
+    } finally {
+      revalidatePath("/search");
+      revalidatePath("/feed");
+    }
   } catch (e) {
-    return { added: 0, error: e instanceof Error ? e.message : "arXiv search failed" };
+    return { error: e instanceof Error ? e.message : "arXiv search failed" };
   }
 }

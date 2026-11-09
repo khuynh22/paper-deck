@@ -1,7 +1,10 @@
 "use server";
 
+import { withMutation } from "@/lib/db/mutation";
+import { mutationFailure, type MutationResult } from "@/lib/mutationResult";
 import { revalidatePath } from "next/cache";
 import { serverClient } from "@/lib/db/server";
+import { resolvePaperId } from "@/lib/db/paperIdentity";
 import { currentUser } from "@/lib/auth";
 import type { ProgressRow } from "@/lib/types";
 import { buildProgressRow, type ProgressUpdate } from "@/lib/db/progressRow";
@@ -11,6 +14,7 @@ export async function loadProgress(paperId: string): Promise<ProgressRow | null>
   const user = await currentUser();
   if (!user) return null;
   const db = await serverClient();
+  paperId = await resolvePaperId(db, paperId);
   const { data } = await db
     .from("reading_progress")
     .select("*")
@@ -33,12 +37,29 @@ export async function loadProgress(paperId: string): Promise<ProgressRow | null>
  * Persist a partial progress update (debounced by the caller). Only the provided
  * fields are written; unspecified fields keep their existing values on conflict.
  */
-export async function saveProgress(paperId: string, update: ProgressUpdate): Promise<void> {
-  const user = await currentUser();
-  if (!user) return;
-  const db = await serverClient();
-  const row = buildProgressRow(user.id, paperId, update, new Date().toISOString());
-  await db.from("reading_progress").upsert(row, { onConflict: "user_id,paper_id" });
+export async function saveProgress(paperId: string, update: ProgressUpdate): Promise<MutationResult> {
+  const result = await withMutation(async (db, userId) => {
+    paperId = await resolvePaperId(db, paperId);
+    const row = buildProgressRow(userId, paperId, update, new Date().toISOString());
+    const { data, error } = await db.from("reading_progress")
+      .upsert(row, { onConflict: "user_id,paper_id" })
+      .select("paper_id").single();
+    if (error || !data) return mutationFailure(error);
+    return { ok: true, data: undefined };
+  });
+  if (result.ok) {
+    // Previously visited pages can remain in the client router cache. Refresh
+    // their progress labels after the write, including browser Back to the feed.
+    try {
+      revalidatePath("/");
+      revalidatePath("/library");
+      revalidatePath(`/paper/${paperId}`);
+    } catch (error) {
+      // The row is already committed; a cache error must not report save failure.
+      console.error("Could not refresh reading progress pages", error);
+    }
+  }
+  return result;
 }
 
 /** Remove a single paper from the user's reading history ("Continue reading" shelf). */
@@ -46,6 +67,7 @@ export async function clearProgress(paperId: string): Promise<void> {
   const user = await currentUser();
   if (!user) return;
   const db = await serverClient();
+  paperId = await resolvePaperId(db, paperId);
   await db.from("reading_progress").delete().eq("user_id", user.id).eq("paper_id", paperId);
   revalidatePath("/");
 }

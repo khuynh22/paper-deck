@@ -52,11 +52,11 @@ export async function runSources(
   list: Pick<Source, "id" | "run">[],
   deadline = Date.now() + 35_000,
 ): Promise<AggregateResult> {
-  const results: NormalizedPaper[] = [];
-  const errors: { id: string; error: string }[] = [];
+  const batches: NormalizedPaper[][] = [];
   const outcomes: SourceOutcome[] = [];
   await Promise.all(
-    list.map(async (s) => {
+    list.map(async (s, index) => {
+      batches[index] = [];
       const started = Date.now();
       const warnings: string[] = [];
       const context = { deadline, warnings, successes: 0 };
@@ -67,20 +67,19 @@ export async function runSources(
           // Give aborted subrequests a brief chance to return earlier successes.
           new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new SourceError("timeout")), Math.max(0, deadline - Date.now()) + 100); }),
         ]);
-        results.push(...papers);
-        outcomes.push({ id: s.id, status: warnings.length ? (context.successes || papers.length ? "partial" : "failed") : "healthy",
-          count: papers.length, startedAt: new Date(started).toISOString(), finishedAt: new Date().toISOString(), latencyMs: Date.now() - started, errors: warnings });
-        errors.push(...warnings.map(error => ({ id: s.id, error })));
+        batches[index] = papers;
+        outcomes[index] = { id: s.id, status: warnings.length ? (context.successes || papers.length ? "partial" : "failed") : "healthy",
+          count: papers.length, startedAt: new Date(started).toISOString(), finishedAt: new Date().toISOString(), latencyMs: Date.now() - started, errors: warnings };
       } catch (err) {
         const error = safeSourceError(err);
-        errors.push({ id: s.id, error });
-        outcomes.push({ id: s.id, status: "failed", count: 0, startedAt: new Date(started).toISOString(), finishedAt: new Date().toISOString(), latencyMs: Date.now() - started, errors: [error] });
+        outcomes[index] = { id: s.id, status: "failed", count: 0, startedAt: new Date(started).toISOString(), finishedAt: new Date().toISOString(), latencyMs: Date.now() - started, errors: [error] };
       } finally {
         clearTimeout(timer);
       }
     }),
   );
-  return { results, errors, outcomes };
+  // Source precedence must follow the registry, regardless of response timing.
+  return { results: batches.flat(), errors: outcomes.flatMap(source => source.errors.map(error => ({ id: source.id, error }))), outcomes };
 }
 
 /** Pull from every enabled source. */

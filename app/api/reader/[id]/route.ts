@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { serverClient } from "@/lib/db/server";
 import { serviceClient } from "@/lib/db/service";
+import { resolvePaperId } from "@/lib/db/paperIdentity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +31,12 @@ async function proxyPdf(pdfUrl: string): Promise<Response> {
 export async function GET(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const db = await serverClient();
+  const canonicalId = await resolvePaperId(db, id);
+  if (canonicalId !== id) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/api/reader/${canonicalId}`;
+    return NextResponse.redirect(url);
+  }
 
   const { data: paper, error } = await db
     .from("papers")
@@ -66,12 +73,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       const result = await loadReaderHtml(paper.arxiv_id);
       if (result.kind === "html") {
         try {
-          serviceClient()
+          const { error: cacheError } = await serviceClient()
             .from("paper_content")
-            .upsert({ paper_id: id, kind: "html", sanitized_html: result.html })
-            .then(() => {});
-        } catch {
-          // no service key configured — serve uncached
+            .upsert({ paper_id: id, kind: "html", sanitized_html: result.html });
+          if (cacheError) console.error("reader: html cache write failed", cacheError);
+        } catch (cacheError) {
+          console.error("reader: html cache write failed", cacheError);
         }
         return NextResponse.json({ kind: "html", html: result.html, pdfUrl: paper.pdf_url, title });
       }

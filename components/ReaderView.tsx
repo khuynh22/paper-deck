@@ -65,6 +65,7 @@ export function ReaderView({
   if (payload.kind === "html") {
     return (
       <HtmlReader
+        key={paperId}
         paperId={paperId}
         html={payload.html}
         initialProgress={initialProgress}
@@ -74,7 +75,7 @@ export function ReaderView({
   }
 
   if (payload.kind === "pdf") {
-    return <PdfReader paperId={paperId} initialProgress={initialProgress} />;
+    return <PdfReader key={paperId} paperId={paperId} initialProgress={initialProgress} />;
   }
 
   // kind === "none" — no in-app rendering available.

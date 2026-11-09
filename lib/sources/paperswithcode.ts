@@ -1,4 +1,4 @@
-import { sourceFetch } from "./http";
+import { sourceFetch, sourceJson } from "./http";
 import type { NormalizedPaper } from "@/lib/types";
 
 interface PwcPaper {
@@ -47,5 +47,5 @@ export async function fetchPwcTrending(): Promise<NormalizedPaper[]> {
     });
     const contentType = res.headers.get("content-type") ?? "";
     if (!contentType.includes("application/json")) throw new Error("Retired source format");
-    return parsePwc(await res.json());
+    return parsePwc(await sourceJson(res, "results"));
 }
