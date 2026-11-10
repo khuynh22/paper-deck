@@ -4,7 +4,8 @@ PaperDeck deploys as a Next.js app on **Vercel** with a hosted **Supabase** proj
 Both have free tiers.
 
 For an existing database, follow the [production upgrade](INGESTION.md#production-upgrade)
-before deploying.
+before deploying. For refresh results and recovery, see
+[refresh operations](REFRESH-OPERATIONS.md).
 
 ## 1. Create the Supabase project
 
