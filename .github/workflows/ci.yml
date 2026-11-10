@@ -5,6 +5,8 @@ on:
     branches: [master]
   # Include dependent PR bases so stacked changes receive the same checks.
   pull_request:
+    # Retargeting a conflicted PR or marking a draft ready must restart CI.
+    types: [opened, synchronize, reopened, ready_for_review, edited]
 
 concurrency:
   group: ci-${{ github.ref }}
