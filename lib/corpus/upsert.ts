@@ -29,15 +29,20 @@ export function toPaperRow(p: NormalizedPaper & Partial<Pick<DeduplicatedPaper, 
 }
 
 /** Each input gets an outcome; bad records cannot discard unrelated papers. */
-export async function upsertPapers(papers: NormalizedPaper[]): Promise<IngestionResult> {
+export async function upsertPapers(papers: NormalizedPaper[], signal?: AbortSignal): Promise<IngestionResult> {
   const result: IngestionResult = { inserted: 0, updated: 0, skipped: 0, failed: 0, unconfirmed: 0 };
   if (!papers.length) return result;
   const db = serviceClient();
   const unique = dedupe(papers);
   for (let offset = 0; offset < unique.length; offset += INGESTION_BATCH_SIZE) {
     const rows = unique.slice(offset, offset + INGESTION_BATCH_SIZE).map(toPaperRow);
+    if (signal?.aborted) {
+      result.unconfirmed += unique.length - offset;
+      break;
+    }
     try {
-      const { data, error } = await db.rpc("merge_papers", { incoming: rows });
+      const request = db.rpc("merge_papers", { incoming: rows });
+      const { data, error } = await (signal ? request.abortSignal(signal) : request);
       if (error) throw new Error("Paper import RPC failed", { cause: error });
       if (!Array.isArray(data) || data.length !== rows.length ||
           new Set(data.map(row => row?.input_index)).size !== rows.length ||
@@ -47,7 +52,9 @@ export async function upsertPapers(papers: NormalizedPaper[]): Promise<Ingestion
       }
       for (const row of data) result[row.outcome as Exclude<keyof IngestionResult, "unconfirmed">]++;
     } catch (error) {
-      console.error("Paper import batch unconfirmed", { offset, count: rows.length, error, cause: error instanceof Error ? error.cause : undefined });
+      // Refresh requests carry a deadline and must never log raw upstream errors.
+      const details = signal ? {} : { error, cause: error instanceof Error ? error.cause : undefined };
+      console.error("Paper import batch unconfirmed", { offset, count: rows.length, ...details });
       result.unconfirmed += rows.length;
     }
   }

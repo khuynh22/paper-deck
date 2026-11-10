@@ -56,6 +56,7 @@ try {
   freshSql("create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql as 'select null::uuid'; alter default privileges for role postgres in schema public grant all on tables to anon,authenticated,service_role;");
   for (const file of migrations) freshSql(readFileSync("supabase/migrations/" + file, "utf8"));
   freshSql(readFileSync("tests/database/ingestion.sql", "utf8"));
+  freshSql("set role service_role;\n" + readFileSync("tests/database/refresh.sql", "utf8"));
   if (!freshSql("set role service_role; select outcome from merge_papers('[{\"doi\":\"10.test/fresh\",\"title\":\"Fresh\"}]');").includes("inserted")) throw new Error("Fresh migration import failed");
   docker(["dropdb", "--force", "-U", "postgres", freshDatabase]);
   freshCreated = false;
@@ -103,6 +104,18 @@ try {
     sql(migration);
   }
   for (const file of migrations.slice(identityIndex + 1)) sql(readFileSync("supabase/migrations/" + file, "utf8"));
+  sql("set role service_role;\n" + readFileSync("tests/database/refresh.sql", "utf8"));
+  const claimFirst = session("refresh_first");
+  claimFirst.child.stdin.write("begin; select reason from begin_refresh('cron');\n\\echo REFRESH_HELD\n");
+  await until(() => claimFirst.output().includes("REFRESH_HELD"), "first refresh to hold the lease lock");
+  const claimSecond = session("refresh_second");
+  claimSecond.child.stdin.end("select reason from begin_refresh('cron');\n");
+  await until(() => sql("select count(*) from pg_stat_activity where datname=current_database() and application_name='refresh_second' and wait_event_type='Lock';").trim() === "1", "second refresh to wait on the lease");
+  claimFirst.child.stdin.end("commit;\n");
+  const claims = await Promise.all([claimFirst.done, claimSecond.done]);
+  if (!claims[0].split(/\r?\n/).includes("started") || !claims[1].split(/\r?\n/).includes("busy")) throw new Error("Concurrent refresh claims overlapped");
+  sql("select finish_refresh(run_id,'healthy','[]','{}',null) from refresh_lease where singleton;");
+  console.log("Refresh database checks passed: fresh + upgrade, service-role execution, private history, confirmed/unconfirmed counts, cooldown, lease expiry, stale writer rejection and concurrent claims.");
   const first = session("ingestion_first");
   first.child.stdin.write(`begin; select * from merge_papers('[{"doi":"10.test/concurrent","title":"Concurrent","citations":12}]');\n\\echo LOCK_HELD\n`);
   await until(() => first.output().includes("LOCK_HELD"), "first import to hold the transaction lock");

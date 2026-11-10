@@ -16,10 +16,14 @@ export function RefreshButton() {
     startTransition(async () => {
       try {
         const r = await triggerRefresh();
+        if (r.status === "busy" || r.status === "cooldown") {
+          setMsg(r.status === "busy" ? "A refresh is already running." : "Please wait five minutes between manual refreshes.");
+          return;
+        }
         const errs = r.errors.length ? ` · ${r.errors.length} source error(s)` : "";
         const c = r.ingestion;
-        setMsg(formatIngestion(c) + errs);
-        setFailed(c.failed > 0 || c.unconfirmed > 0 || r.errors.length > 0);
+        setMsg(`${r.status}: ${formatIngestion(c)}` + errs);
+        setFailed(r.status !== "healthy" || c.failed > 0 || c.unconfirmed > 0 || r.errors.length > 0);
       } catch {
         setMsg("Refresh failed");
         setFailed(true);
