@@ -1,11 +1,12 @@
 # Refresh operations
 
-Apply the pending `20261109205846_refresh_health.sql` migration after the existing
-identity and application-access migrations, before releasing the refresh callers.
-It replaces this PR's unpublished `0010_refresh_health.sql` so normal upgrades
-remain in timestamp order. Preserve already-applied migration history; do not
-replay historical `0008` or `0009`. No hosted migrations, secrets or settings are
-changed by this PR.
+The `20261110005752_refresh_health.sql` migration is applied to the staging
+Supabase branch used by Vercel previews. Its filename matches the recorded staging
+migration version. Apply it to production after the existing identity and
+application-access migrations, before releasing the refresh callers. It replaces
+this PR's unpublished `0010_refresh_health.sql`. Preserve already-applied migration
+history; do not replay historical `0008` or `0009`. Production migrations, secrets
+and hosted settings have not been changed.
 
 The owner feed shows source outcomes, fetched counts, elapsed milliseconds, last
 successful fetch, and ten recent runs. A successful empty response is healthy.
