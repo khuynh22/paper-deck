@@ -7,7 +7,7 @@ const actions = vi.hoisted(() => ({
   updateHighlightNote: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   deleteHighlight: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
 }));
-vi.mock("@/app/actions/highlights", () => actions);
+vi.mock("@/lib/reader/mutations", () => actions);
 
 import { HighlightLayer } from "@/components/HighlightLayer";
 import type { Highlight } from "@/lib/types";

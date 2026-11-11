@@ -1,4 +1,9 @@
 import { test, expect } from "vitest";
+
+test("distinguishes absent signals from explicitly supplied zero", () => {
+  expect(parseHfDaily([{ paper: { id: "2601.12345", title: "T" } }])[0].signals.hfUpvotes).toBeUndefined();
+  expect(parseHfDaily([{ paper: { id: "2601.12345", title: "T", upvotes: 0 } }])[0].signals.hfUpvotes).toBe(0);
+});
 import { readFileSync } from "node:fs";
 import { parseHfDaily } from "@/lib/sources/huggingface";
 

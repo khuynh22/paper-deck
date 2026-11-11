@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { createHighlight, deleteHighlight, updateHighlightNote } from "@/app/actions/highlights";
+import { createHighlight, deleteHighlight, updateHighlightNote } from "@/lib/reader/mutations";
 import {
   offsetsFromSelection,
   decorateBlock,
@@ -281,8 +281,8 @@ export function HighlightLayer({
       {pending && (
         <div
           data-highlight-controls
-          className={`pd-enter fixed z-30 -translate-x-1/2 pb-2 ${pending.below ? "" : "-translate-y-full"}`}
-          style={{ left: pending.x, top: pending.y }}
+          className={`pd-enter fixed z-30 flex w-72 max-w-[calc(100vw-2rem)] flex-col items-center pb-2 ${pending.below ? "" : "-translate-y-full"}`}
+          style={{ left: `clamp(1rem, calc(${pending.x}px - 9rem), calc(100vw - 19rem))`, top: pending.y }}
         >
           <Button
             variant="primary"
@@ -292,7 +292,7 @@ export function HighlightLayer({
           >
             Highlight
           </Button>
-          <div className="mt-1 max-w-72 rounded-xl bg-card p-2 shadow-md">
+          <div className="mt-1 w-full rounded-xl bg-card p-2 shadow-md">
             <SaveStatus state={saveState} onRetry={retry} />
             <button type="button" className="mt-1 text-xs underline" disabled={saving} onClick={cancel}>Cancel</button>
           </div>
@@ -302,8 +302,8 @@ export function HighlightLayer({
       {editing && (
         <div
           data-highlight-controls
-          className="pd-enter fixed z-30 w-72 rounded-xl border border-line bg-card p-3 shadow-lg"
-          style={{ left: editing.x, top: editing.y + 6 }}
+          className="pd-enter fixed z-30 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-card p-3 shadow-lg"
+          style={{ left: `clamp(1rem, ${editing.x}px, calc(100vw - 19rem))`, top: editing.y + 6 }}
         >
           <textarea
             aria-label="Note"
