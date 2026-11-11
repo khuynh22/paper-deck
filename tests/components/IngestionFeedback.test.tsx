@@ -21,13 +21,23 @@ test("empty arxiv results show an explicit empty state", async () => {
 test.each(["search", "refresh"])("%s marks partial failures and unconfirmed outcomes as an error", async kind => {
   const ingestion = { inserted: 3, updated: 0, skipped: 1, failed: 1, unconfirmed: 2 };
   mocks.search.mockResolvedValue({ error: null, ingestion });
-  mocks.refresh.mockResolvedValue({ errors: [], ingestion });
+  mocks.refresh.mockResolvedValue({ status: "partial", errors: [], ingestion });
   render(kind === "search" ? <ExternalSearch query="paper" /> : <RefreshButton />);
   fireEvent.click(screen.getByRole("button"));
   const feedback = await screen.findByRole("alert");
   expect(feedback).toHaveTextContent("3 added");
   expect(feedback).toHaveTextContent("1 failed");
   expect(feedback).toHaveTextContent("2 unconfirmed");
+});
+
+test.each([
+  ["busy", "A refresh is already running."],
+  ["cooldown", "Please wait five minutes between manual refreshes."],
+])("refresh explains the %s state", async (status, message) => {
+  mocks.refresh.mockResolvedValue({ status });
+  render(<RefreshButton />);
+  fireEvent.click(screen.getByRole("button"));
+  expect(await screen.findByRole("status")).toHaveTextContent(message);
 });
 
 test("a thrown search action gives visible failure feedback", async () => {

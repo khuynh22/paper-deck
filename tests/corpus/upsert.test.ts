@@ -93,3 +93,15 @@ test("a thrown transport failure remains unconfirmed", async () => {
   rpc.mockRejectedValue(new Error("connection reset"));
   expect(await upsertPapers([base({})])).toMatchObject({ inserted: 0, failed: 0, unconfirmed: 1 });
 });
+
+test("deadline expiry retains committed counts and stops further database requests", async () => {
+  const controller = new AbortController();
+  rpc.mockImplementation((_name, { incoming }) => ({ abortSignal: async (signal: AbortSignal) => {
+    expect(signal).toBe(controller.signal);
+    controller.abort();
+    return { data: incoming.map((_: unknown, input_index: number) => ({ input_index, outcome: "inserted" })), error: null };
+  } }));
+  expect(await upsertPapers(Array.from({ length: 201 }, (_, i) => base({ arxivId: `a${i}` })), controller.signal))
+    .toEqual({ inserted: 100, updated: 0, skipped: 0, failed: 0, unconfirmed: 101 });
+  expect(rpc).toHaveBeenCalledTimes(1);
+});

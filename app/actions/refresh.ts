@@ -3,24 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth";
 import { isOwner } from "@/lib/env";
-import { aggregate } from "@/lib/sources";
-import { upsertPapers, type IngestionResult } from "@/lib/corpus/upsert";
-
-export interface RefreshResult {
-  ingestion: IngestionResult;
-  errors: { id: string; error: string }[];
-}
+import { runRefresh, type RefreshResult } from "@/lib/corpus/refresh";
 
 /** Owner-only manual corpus refresh. */
 export async function triggerRefresh(): Promise<RefreshResult> {
   const user = await currentUser();
   if (!isOwner(user?.email)) throw new Error("owner only");
 
-  const { results, errors } = await aggregate();
   try {
-    const ingestion = await upsertPapers(results);
-    return { ingestion, errors };
+    return await runRefresh("manual");
   } finally {
+    revalidatePath("/");
     revalidatePath("/feed");
     revalidatePath("/search");
   }
