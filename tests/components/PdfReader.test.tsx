@@ -6,7 +6,8 @@ const { saveProgress, pdf } = vi.hoisted(() => ({
   saveProgress: vi.fn(),
   pdf: { onLoadSuccess: null as null | ((value: { numPages: number }) => void) },
 }));
-vi.mock("@/app/actions/progress", () => ({ saveProgress }));
+vi.mock("@/lib/reader/mutations", () => ({ saveProgress }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("react-pdf", () => ({
   pdfjs: { version: "test", GlobalWorkerOptions: {} },
   Document: ({ children, onLoadSuccess }: { children: ReactNode; onLoadSuccess: (value: { numPages: number }) => void }) => {

@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => {
 vi.mock("@/lib/auth", () => ({ currentUser: mocks.currentUser }));
 vi.mock("@/lib/db/server", () => ({ serverClient: async () => ({ from: mocks.from }) }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
+const identity = vi.hoisted(() => vi.fn(async (_db: unknown, id: string) => id));
+vi.mock("@/lib/db/paperIdentity", () => ({ resolvePaperId: identity }));
 
 import { toggleStar } from "@/app/actions/star";
 
@@ -27,6 +29,7 @@ const USER = { id: "user-1" } as User;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  identity.mockImplementation(async (_db, id) => id);
   mocks.currentUser.mockResolvedValue(USER);
   mocks.upsert.mockResolvedValue({ error: null });
   mocks.deleteEq2.mockResolvedValue({ error: null });
@@ -66,4 +69,18 @@ test("returns the new starred state and revalidates on success", async () => {
 
   expect(mocks.revalidatePath).toHaveBeenCalledWith("/feed");
   expect(mocks.revalidatePath).toHaveBeenCalledWith("/library");
+});
+
+test("stale detail pages star and unstar the consolidated paper", async () => {
+  identity.mockResolvedValue("canonical");
+  expect(await toggleStar("old", false)).toEqual({ ok: true, starred: true });
+  expect(mocks.upsert).toHaveBeenCalledWith({ user_id: "user-1", paper_id: "canonical" }, expect.anything());
+  await toggleStar("old", true);
+  expect(mocks.deleteEq2).toHaveBeenCalledWith("paper_id", "canonical");
+});
+
+test("an identity lookup failure cannot acknowledge a star save", async () => {
+  identity.mockRejectedValueOnce(new Error("lookup failed"));
+  expect(await toggleStar("old", false)).toEqual({ ok: false, error: "save-failed" });
+  expect(mocks.upsert).not.toHaveBeenCalled();
 });

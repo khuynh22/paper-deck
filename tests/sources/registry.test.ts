@@ -36,5 +36,17 @@ test("a throwing source is isolated and reported, others still return", async ()
     },
   ]);
   expect(results).toHaveLength(1);
-  expect(errors).toEqual([{ id: "semanticscholar", error: "boom" }]);
+  expect(errors).toEqual([{ id: "semanticscholar", error: "Source failed" }]);
+});
+
+test("source priority follows registry order even when the first source finishes last", async () => {
+  let finish!: (papers: NormalizedPaper[]) => void;
+  const slow = new Promise<NormalizedPaper[]>(resolve => { finish = resolve; });
+  const pending = runSources([
+    { id: "arxiv", run: () => slow },
+    { id: "huggingface", run: async () => [fake("second")] },
+  ]);
+  await Promise.resolve();
+  finish([fake("first")]);
+  expect((await pending).results.map(p => p.arxivId)).toEqual(["first", "second"]);
 });

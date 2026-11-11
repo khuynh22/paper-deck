@@ -1,16 +1,21 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { saveProgress } from "@/app/actions/progress";
+import { useRouter } from "next/navigation";
+import { saveProgress } from "@/lib/reader/mutations";
 import { runReaderAction } from "@/lib/reader/runReaderAction";
 import { ProgressSaver } from "@/lib/reader/progressSaver";
 import { useUnsavedChanges } from "@/components/useUnsavedChanges";
 import type { ProgressUpdate } from "@/lib/db/progressRow";
 
 export function useProgressSave(paperId: string, onAcknowledged?: (update: ProgressUpdate) => void) {
+  const router = useRouter();
   // ReaderView keys readers by paperId, giving each paper its own queue.
-  const [saver] = useState(() => new ProgressSaver((update) =>
-    runReaderAction(() => saveProgress(paperId, update)),
+  const [saver] = useState(() => new ProgressSaver(async (update) => {
+    const result = await runReaderAction(() => saveProgress(paperId, update));
+    if (result.ok) router.refresh();
+    return result;
+  },
     onAcknowledged,
   ));
   const state = useSyncExternalStore(saver.subscribe, saver.getSnapshot, saver.getSnapshot);

@@ -2,6 +2,7 @@ import { ContinueShelf } from "@/components/ContinueShelf";
 import { FeedTabs } from "@/components/FeedTabs";
 import { PaperCard } from "@/components/PaperCard";
 import { RefreshButton } from "@/components/RefreshButton";
+import { RefreshHealth } from "@/components/RefreshHealth";
 import { getFeed } from "@/lib/corpus/query";
 import { getProgressMap, getStarredIds } from "@/lib/db/queries";
 import { currentUser } from "@/lib/auth";
@@ -9,6 +10,7 @@ import { isOwner } from "@/lib/env";
 import { FEED_TABS, type FeedTab, type PaperRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 function resolveTab(value: string | undefined): FeedTab {
   return FEED_TABS.includes(value as FeedTab) ? (value as FeedTab) : "latest";
@@ -66,6 +68,7 @@ export default async function FeedPage({
       </div>
 
       {user && <ContinueShelf userId={user.id} />}
+      {owner && <RefreshHealth />}
 
       <div className="mt-5">
         <FeedTabs active={tab} />
