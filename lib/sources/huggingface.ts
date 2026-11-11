@@ -1,3 +1,4 @@
+import { sourceFetch, sourceJson } from "./http";
 import type { NormalizedPaper } from "@/lib/types";
 
 interface HfAuthor {
@@ -39,16 +40,16 @@ export function parseHfDaily(json: unknown): NormalizedPaper[] {
         pdfUrl: `https://arxiv.org/pdf/${arxivId}`,
         sourceUrl: `https://huggingface.co/papers/${arxivId}`,
         publishedAt: item.publishedAt ?? p.publishedAt ?? null,
-        signals: { hfUpvotes: p.upvotes ?? 0 },
+        signals: { hfUpvotes: p.upvotes },
       };
     })
     .filter((p): p is NormalizedPaper => p !== null);
 }
 
 export async function fetchHfDaily(): Promise<NormalizedPaper[]> {
-  const res = await fetch("https://huggingface.co/api/daily_papers", {
+  const res = await sourceFetch("https://huggingface.co/api/daily_papers", {
     headers: { "User-Agent": "PaperDeck/1.0 (research reader)" },
   });
   if (!res.ok) throw new Error(`huggingface ${res.status}`);
-  return parseHfDaily(await res.json());
+  return parseHfDaily(await sourceJson(res));
 }

@@ -3,7 +3,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 const db = vi.hoisted(() => {
   const result = vi.fn();
   const query: Record<string, ReturnType<typeof vi.fn>> = {};
-  for (const name of ["upsert", "insert", "update", "delete", "select", "eq"]) {
+  for (const name of ["upsert", "insert", "update", "delete", "select", "eq", "order"]) {
     query[name] = vi.fn(() => query);
   }
   query.single = result;
@@ -14,9 +14,11 @@ const db = vi.hoisted(() => {
 vi.mock("@/lib/db/server", () => ({ serverClient: async () => db }));
 vi.mock("@/lib/auth", () => ({ currentUser: async () => (await db.getUser()).data.user, authenticatedUser: async () => db.getUser() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const identity = vi.hoisted(() => vi.fn(async (_db: unknown, id: string) => id));
+vi.mock("@/lib/db/paperIdentity", () => ({ resolvePaperId: identity }));
 
-import { saveProgress } from "@/app/actions/progress";
-import { createHighlight, updateHighlightNote, deleteHighlight } from "@/app/actions/highlights";
+import { saveProgress, loadProgress, clearProgress } from "@/app/actions/progress";
+import { createHighlight, loadHighlights, updateHighlightNote, deleteHighlight } from "@/app/actions/highlights";
 
 const ID = "d75713aa-2a0c-4f01-a192-9a8df3e3d395";
 const input = { paperId: "p1", blockAnchor: "0", startOffset: 0, endOffset: 4, quote: "text", note: null };
@@ -24,6 +26,7 @@ const row = { id: ID, paper_id: "p1", block_anchor: "0", start_offset: 0, end_of
 
 beforeEach(() => {
   vi.clearAllMocks();
+  identity.mockImplementation(async (_db, id) => id);
   db.result.mockReset();
   Object.assign(db, { auth: { getUser: db.getUser } });
   db.getUser.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
@@ -141,4 +144,36 @@ test("an unresolved duplicate highlight is non-retryable", async () => {
   db.result.mockResolvedValueOnce({ data: null, error: null });
   expect(await createHighlight(input, ID)).toMatchObject({ ok: false, code: "not_found",
     message: expect.not.stringMatching(/note/i) });
+});
+
+test("a stale reader saves progress to the consolidated paper", async () => {
+  identity.mockResolvedValue("canonical");
+  await saveProgress("old", { scrollPct: 0.4 });
+  expect(db.query.upsert).toHaveBeenCalledWith(expect.objectContaining({ user_id: "u1", paper_id: "canonical", scroll_pct: 0.4 }), expect.anything());
+});
+
+test("progress loads and clears through old paper IDs with ownership intact", async () => {
+  identity.mockResolvedValue("canonical");
+  await loadProgress("old");
+  await clearProgress("old");
+  expect(db.query.eq).toHaveBeenCalledWith("paper_id", "canonical");
+  expect(db.query.eq).not.toHaveBeenCalledWith("paper_id", "old");
+  expect(db.query.eq).toHaveBeenCalledWith("user_id", "u1");
+});
+
+test("a lost highlight response can be retried from an old reader tab after consolidation", async () => {
+  identity.mockResolvedValue("canonical");
+  db.result.mockResolvedValueOnce({ data: null, error: { code: "23505" } });
+  db.result.mockResolvedValueOnce({ data: { ...row, paper_id: "canonical", note: "edited" }, error: null });
+  expect(await createHighlight({ ...input, paperId: "old" }, ID)).toEqual({ ok: true, data: { ...input, paperId: "canonical", id: ID, note: "edited" } });
+  expect(db.query.insert).toHaveBeenCalledWith(expect.objectContaining({ paper_id: "canonical", user_id: "u1" }));
+  expect(db.query.update).not.toHaveBeenCalled();
+});
+
+test("highlights load through the old paper ID", async () => {
+  identity.mockResolvedValue("canonical");
+  db.result.mockResolvedValue({ data: [], error: null });
+  await loadHighlights("old");
+  expect(db.query.eq).toHaveBeenCalledWith("paper_id", "canonical");
+  expect(db.query.eq).toHaveBeenCalledWith("user_id", "u1");
 });

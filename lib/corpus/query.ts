@@ -1,4 +1,5 @@
 import { serverClient } from "@/lib/db/server";
+import { resolvePaperId } from "@/lib/db/paperIdentity";
 import type { FeedTab, PaperRow } from "@/lib/types";
 
 /**
@@ -69,7 +70,8 @@ export async function getPaperByArxivId(arxivId: string): Promise<PaperRow | nul
 /** Fetch a single paper by id. */
 export async function getPaper(id: string): Promise<PaperRow | null> {
   const db = await serverClient();
-  const { data, error } = await db.from("papers").select("*").eq("id", id).maybeSingle();
+  const canonicalId = await resolvePaperId(db, id);
+  const { data, error } = await db.from("papers").select("*").eq("id", canonicalId).maybeSingle();
   if (error) throw error;
   return (data as PaperRow) ?? null;
 }

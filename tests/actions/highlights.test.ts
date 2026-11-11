@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@/lib/auth", () => ({ currentUser: mocks.currentUser }));
 vi.mock("@/lib/db/server", () => ({ serverClient: async () => ({ from: mocks.from }) }));
+vi.mock("@/lib/db/paperIdentity", () => ({ resolvePaperId: async (_db: unknown, id: string) => id }));
 
 import { loadHighlights } from "@/app/actions/highlights";
 

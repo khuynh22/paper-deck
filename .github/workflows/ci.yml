@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [master]
+  # Include dependent PR bases so stacked changes receive the same checks.
   pull_request:
-    branches: [master]
+    # Retargeting a conflicted PR or marking a draft ready must restart CI.
+    types: [opened, synchronize, reopened, ready_for_review, edited]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -36,6 +38,35 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  database:
+    name: Database regressions
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: local-test-password
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Create local API roles
+        env:
+          TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: >-
+          docker exec "$TEST_POSTGRES_CONTAINER" psql -U postgres -v ON_ERROR_STOP=1
+          -c 'create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;'
+      - name: Check ingestion and refresh migrations
+        env:
+          TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: node scripts/test-ingestion-db.mjs
 
   build:
     name: Production build
