@@ -168,6 +168,7 @@ export function PdfReader({
       <div ref={containerRef} className="mx-auto flex max-w-3xl flex-col items-center px-2 pb-28 pt-6">
         <Document
           file={fileUrl}
+          suspense={false}
           onLoadSuccess={onDocumentLoad}
           onLoadError={() => setError(true)}
           loading={<p className="py-20 text-sm text-muted-foreground">Loading PDF…</p>}
