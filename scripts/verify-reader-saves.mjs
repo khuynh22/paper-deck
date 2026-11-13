@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { chromium } from "playwright";
+import { sanitizePaperHtml } from "../lib/reader/sanitize.ts";
 
 process.loadEnvFile(join(process.cwd(), ".env.local"));
 
@@ -18,6 +19,7 @@ const email = `save-check-${randomUUID()}@example.test`;
 const password = randomUUID();
 const paperId = randomUUID();
 const actionRoute = "**/api/reader/mutations";
+const svgFixtureUrl = "https://arxiv.org/html/2401.00001v1/diagram.svg";
 let userId;
 let browser;
 
@@ -79,10 +81,15 @@ async function verify() {
     authors: ["Local test"],
     categories: [],
   }));
-  const html = Array.from({ length: 35 }, (_, index) => {
+  const paragraphs = Array.from({ length: 35 }, (_, index) => {
     const intro = index === 0 ? "Diffusion models are great. " : "";
-    return `<p data-blk="${index}">${intro}Local verification paragraph ${index}. This fixture checks reliable reading progress and private notes across browser sessions.</p>`;
+    return `<p>${intro}Local verification paragraph ${index}. This fixture checks reliable reading progress and private notes across browser sessions.</p>`;
   }).join("");
+  const html = sanitizePaperHtml(
+    `<article>${paragraphs}<figure><img src="${baseUrl}/icon.png" alt="PNG fixture"></figure>
+    <figure><object type="image/svg+xml" data="2401.00001v1/diagram.svg" aria-label="SVG fixture"></object></figure></article>`,
+    "https://arxiv.org/html/2401.00001v1",
+  );
   check(await db.from("paper_content").insert({
     paper_id: paperId,
     kind: "html",
@@ -112,6 +119,11 @@ async function verify() {
     args: ["--no-sandbox"],
   });
   const context = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+  const serveSvgFixture = (route) => route.fulfill({
+    contentType: "image/svg+xml",
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40"><rect width="80" height="40" fill="teal"/></svg>',
+  });
+  await context.route(svgFixtureUrl, serveSvgFixture);
   const authCookies = cookies.map((cookie) => ({
     name: cookie.name,
     value: cookie.value,
@@ -131,6 +143,11 @@ async function verify() {
 
   await page.goto(`${baseUrl}/reader/${paperId}`);
   await page.locator(".paper-html").waitFor();
+  await page.waitForFunction(() => {
+    const images = [...document.querySelectorAll(".paper-html img")];
+    return images.length === 2 && images.every((img) => img.complete && img.naturalWidth > 0 && img.naturalHeight > 0);
+  });
+  console.log("PASS: PNG and SVG figures load with nonzero dimensions");
   await page.evaluate(() => {
     window.scrollTo(0, 100);
     window.dispatchEvent(new Event("scroll"));
@@ -232,6 +249,7 @@ async function verify() {
   console.log("PASS: note failure retains draft; retry persists it");
 
   const second = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await second.route(svgFixtureUrl, serveSvgFixture);
   await second.addCookies(authCookies);
   const phone = await second.newPage();
   await phone.goto(`${baseUrl}/reader/${paperId}`);

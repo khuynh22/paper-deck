@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 type Ctx = { params: Promise<{ id: string }> };
+const HTML_CACHE_PREFIX = "<!--paperdeck:reader-html:2-->";
 
 async function proxyPdf(pdfUrl: string): Promise<Response> {
   const upstream = await fetch(pdfUrl, {
@@ -54,33 +55,40 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   }
 
   const title = paper.title as string;
+  const htmlResponse = (html: string) => NextResponse.json({ kind: "html", html, pdfUrl: paper.pdf_url, title });
 
   // --- Cached sanitized HTML ---
   const { data: cached } = await db
     .from("paper_content")
-    .select("kind, sanitized_html")
+    .select("kind, sanitized_html, fetched_at")
     .eq("paper_id", id)
     .maybeSingle();
 
-  if (cached?.kind === "html" && cached.sanitized_html) {
-    return NextResponse.json({ kind: "html", html: cached.sanitized_html, pdfUrl: paper.pdf_url, title });
+  const cachedHtml: string | undefined = cached?.kind === "html" && cached.sanitized_html
+    ? cached.sanitized_html
+    : undefined;
+  if (cachedHtml?.startsWith(HTML_CACHE_PREFIX)) {
+    return htmlResponse(cachedHtml.slice(HTML_CACHE_PREFIX.length));
   }
 
   // --- Fetch + sanitize HTML on demand, then cache ---
   if (paper.arxiv_id) {
     try {
       const { loadReaderHtml } = await import("@/lib/reader/fetchHtml");
-      const result = await loadReaderHtml(paper.arxiv_id);
+      const result = await loadReaderHtml(paper.arxiv_id, cachedHtml);
       if (result.kind === "html") {
         try {
-          const { error: cacheError } = await serviceClient()
-            .from("paper_content")
-            .upsert({ paper_id: id, kind: "html", sanitized_html: result.html });
+          const content = serviceClient().from("paper_content");
+          const payload = { kind: "html", sanitized_html: HTML_CACHE_PREFIX + result.html };
+          const { error: cacheError } = await (cached
+            ? content.update({ ...payload, fetched_at: new Date().toISOString() })
+              .eq("paper_id", id).eq("fetched_at", cached.fetched_at)
+            : content.upsert({ ...payload, paper_id: id }, { onConflict: "paper_id", ignoreDuplicates: true }));
           if (cacheError) console.error("reader: html cache write failed", cacheError);
         } catch (cacheError) {
           console.error("reader: html cache write failed", cacheError);
         }
-        return NextResponse.json({ kind: "html", html: result.html, pdfUrl: paper.pdf_url, title });
+        return htmlResponse(result.html);
       }
       // result.kind === "none" — no HTML version; fall through to PDF/none below.
     } catch (e) {
@@ -90,6 +98,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       console.error("reader: html load failed for", paper.arxiv_id, e);
     }
   }
+
+  if (cachedHtml) return htmlResponse(cachedHtml);
 
   // --- Fallbacks ---
   if (paper.pdf_url) {

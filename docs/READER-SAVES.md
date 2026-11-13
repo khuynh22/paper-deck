@@ -102,9 +102,10 @@ Run `pnpm dev` against local Supabase, then `pnpm verify:reader-saves`
 in another shell. The script lives at
 [`scripts/verify-reader-saves.mjs`](../scripts/verify-reader-saves.mjs),
 requires a local `.env.local` with the app's Supabase service-role key, and
-creates then removes a temporary user and paper. Install Chromium with
-`pnpm exec playwright install chromium` if needed, or set `READER_SAVE_CHROMIUM`
-to an installed Chromium executable.
+creates then removes a temporary user and paper. Use Node 22.18 or later for
+the browser check, which imports the reader's TypeScript sanitizer. Install
+Chromium with `pnpm exec playwright install chromium` if needed, or set
+`READER_SAVE_CHROMIUM` to an installed Chromium executable.
 
 The development app was exercised in Chromium against local Supabase with a
 temporary authenticated user and HTML paper. Network responses were deliberately
