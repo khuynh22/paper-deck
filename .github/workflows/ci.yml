@@ -67,6 +67,10 @@ jobs:
         env:
           TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
         run: node scripts/test-ingestion-db.mjs
+      - name: Check trending ranking and paging
+        env:
+          TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: node scripts/test-ranking-db.mjs
 
   build:
     name: Production build
