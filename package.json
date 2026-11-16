@@ -16,12 +16,12 @@
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
-    "fast-xml-parser": "^5.12.0",
-    "next": "16.4.5",
+    "fast-xml-parser": "^5.12.1",
+    "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-pdf": "^11.0.0",
-    "sanitize-html": "^2.18.1",
+    "sanitize-html": "^2.18.2",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -32,14 +32,14 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/sanitize-html": "^2.16.2",
-    "@vitejs/plugin-react": "^6.2.1",
+    "@vitejs/plugin-react": "^6.3.0",
     "eslint": "^9",
-    "eslint-config-next": "16.4.5",
-    "jsdom": "^31.0.0",
+    "eslint-config-next": "16.4.6",
+    "jsdom": "^31.0.1",
     "msw": "^2.15.0",
     "playwright": "^1.65.0",
     "tailwindcss": "^4",
     "typescript": "^6",
-    "vitest": "^5.0.3"
+    "vitest": "^5.1.0"
   }
 }
