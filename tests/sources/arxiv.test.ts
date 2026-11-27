@@ -35,3 +35,15 @@ test("handles single-author entry and trims abstract", () => {
   expect(second.abstract).toBe("A fresh look at denoising diffusion probabilistic models.");
   expect(second.publishedAt).toBe("2024-02-01T10:00:00Z");
 });
+
+test.each([
+  "<html><body>Maintenance</body></html>",
+  "<feed><entry></feed>",
+  "<feed><entry><id>http://arxiv.org/api/errors#incorrect_id_format</id><title>Error</title></entry></feed>",
+])("rejects malformed feeds and arxiv API errors", xml => {
+  expect(() => parseArxivAtom(xml)).toThrow("Upstream format");
+});
+
+test("a valid Atom feed with zero entries remains a successful empty result", () => {
+  expect(parseArxivAtom('<feed xmlns="http://www.w3.org/2005/Atom"/>')).toEqual([]);
+});

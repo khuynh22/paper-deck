@@ -2,6 +2,11 @@
 
 import type { SaveState } from "@/lib/reader/progressSaver";
 
+export function saveStatusText(state: SaveState): string {
+  return state.status === "saved" ? "Saved" : state.status === "pending" ? "Unsaved changes" :
+    state.status === "saving" ? "Saving…" : "";
+}
+
 export function SaveStatus({ state, onRetry }: { state: SaveState; onRetry: () => void }) {
   if (state.status === "idle") return null;
   if (state.status === "error") {
@@ -13,13 +18,11 @@ export function SaveStatus({ state, onRetry }: { state: SaveState; onRetry: () =
             Sign in in a new tab
           </a>
         )}
-        {state.error.code !== "validation" && (
+        {(state.error.code === "storage" || state.error.code === "auth") && (
           <button type="button" onClick={onRetry} className="font-semibold underline">Retry</button>
         )}
       </div>
     );
   }
-  return <span role="status" className="text-xs text-muted-foreground">{
-    state.status === "saved" ? "Saved" : state.status === "pending" ? "Unsaved changes" : "Saving…"
-  }</span>;
+  return <span className="text-xs text-muted-foreground">{saveStatusText(state)}</span>;
 }

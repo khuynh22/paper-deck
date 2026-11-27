@@ -1,7 +1,7 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Kicker } from "@/components/ui";
 import { StarButton } from "@/components/StarButton";
 import { ShareButton } from "@/components/ShareButton";
@@ -34,6 +34,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
 
   const paper = await loadPaper(id);
   if (!paper) notFound();
+  if (paper.id !== id) redirect(`/paper/${paper.id}`);
 
   let starred = false;
   let progressPct = 0;

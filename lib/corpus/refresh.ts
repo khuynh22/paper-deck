@@ -9,11 +9,11 @@ export interface RefreshResult {
   ingestion: IngestionResult;
   errors: { id: string; error: string }[];
 }
-const emptyCounts = (): IngestionResult => ({ inserted: 0, updated: 0, skipped: 0, failed: 0 });
+const emptyCounts = (): IngestionResult => ({ inserted: 0, updated: 0, skipped: 0, failed: 0, unconfirmed: 0 });
 
-export function refreshStatus(outcomes: SourceOutcome[], failedRecords: number): RefreshStatus {
+export function refreshStatus(outcomes: SourceOutcome[], failedRecords: number, unconfirmedRecords = 0): RefreshStatus {
   if (!outcomes.length || outcomes.every(source => source.status === "failed")) return "failed";
-  return failedRecords || outcomes.some(source => source.status !== "healthy") ? "partial" : "healthy";
+  return failedRecords || unconfirmedRecords || outcomes.some(source => source.status !== "healthy") ? "partial" : "healthy";
 }
 
 /** Callers authenticate owner/cron before entering this service-role workflow. */
@@ -36,8 +36,9 @@ export async function runRefresh(kind: "manual" | "cron"): Promise<RefreshResult
     outcomes = result.outcomes;
     errors = result.errors;
     ingestion = await upsertPapers(result.results, AbortSignal.timeout(15_000));
-    status = refreshStatus(outcomes, ingestion.failed);
-    if (ingestion.failed && !ingestion.inserted && !ingestion.updated && !ingestion.skipped) status = "failed";
+    status = refreshStatus(outcomes, ingestion.failed, ingestion.unconfirmed);
+    if ((ingestion.failed || ingestion.unconfirmed) && !ingestion.inserted && !ingestion.updated && !ingestion.skipped) status = "failed";
+    if (ingestion.unconfirmed) failure = "Some paper imports could not be confirmed. Retry to confirm.";
   } catch {
     failure = "Refresh could not complete. Check source health and retry.";
     errors.push({ id: "refresh", error: failure });
@@ -47,6 +48,6 @@ export async function runRefresh(kind: "manual" | "cron"): Promise<RefreshResult
   }).abortSignal(AbortSignal.timeout(3_000));
   if (finished.error || finished.data !== true) throw new Error("Could not confirm refresh completion.");
   // Fixed categories/counts only: suitable for log-based operational alerts.
-  console.info("paperdeck.refresh", { runId, status, failedSources: outcomes.filter(s => s.status === "failed").length, failedRecords: ingestion.failed });
+  console.info("paperdeck.refresh", { runId, status, failedSources: outcomes.filter(s => s.status === "failed").length, failedRecords: ingestion.failed, unconfirmedRecords: ingestion.unconfirmed });
   return { runId, status, ingestion, errors };
 }

@@ -78,7 +78,9 @@ docs/           design spec, implementation plan, DEPLOY.md
 
 ## Deployment
 
-See [`docs/DEPLOY.md`](docs/DEPLOY.md).
+See [`docs/DEPLOY.md`](docs/DEPLOY.md) for setup and
+[`docs/REFRESH-OPERATIONS.md`](docs/REFRESH-OPERATIONS.md) for refresh results,
+recovery, and monitoring.
 
 ## Contributing
 

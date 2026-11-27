@@ -5,12 +5,12 @@ const bigHtml = (marker: string) => `<html><body>${"<p>x</p>".repeat(500)}${mark
 
 afterEach(() => vi.unstubAllGlobals());
 
-function mockFetch(handler: (url: string) => { ok: boolean; body: string }) {
+function mockFetch(handler: (url: string) => { ok: boolean; body: string; finalUrl?: string }) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string) => {
-      const { ok, body } = handler(String(input));
-      return { ok, url: String(input), text: async () => body } as Response;
+      const { ok, body, finalUrl } = handler(String(input));
+      return { ok, url: finalUrl ?? String(input), text: async () => body } as Response;
     }),
   );
 }
@@ -49,6 +49,35 @@ test("returns none when neither source has usable html", async () => {
   mockFetch(() => ({ ok: true, body: "<html>tiny stub</html>" }));
   const res = await loadReaderHtml("2401.1");
   expect(res.kind).toBe("none");
+});
+
+test.each([
+  ["https://arxiv.org/html/", "https://arxiv.org/html/2401.00001v1/"],
+  ["https://ar5iv.org/abs/", "https://ar5iv.labs.arxiv.org/html/2401.00001/"],
+])("resolves SVG objects against the final document URL for %s", async (source, finalUrl) => {
+  mockFetch((url) => ({
+    ok: url.startsWith(source),
+    finalUrl,
+    body: `<!--${"fixture ".repeat(260)}--><object type="image/svg+xml" data="figures/diagram.svg"></object>`,
+  }));
+  const result = await loadReaderHtml("2401.00001");
+  expect(result).toMatchObject({ kind: "html", html: expect.stringContaining(`src="${finalUrl}figures/diagram.svg"`) });
+});
+
+test("uses ar5iv for a cache originally generated from ar5iv", async () => {
+  const cached = '<p data-blk="0">Saved passage.</p>';
+  mockFetch((url) => ({
+    ok: true,
+    finalUrl: url.replace("ar5iv.org/abs/", "ar5iv.labs.arxiv.org/html/") + "/",
+    body: `<!--${"fixture ".repeat(260)}--><p>${
+      url.includes("ar5iv.org") ? "Saved passage." : "Different passage."
+    }</p><object type="image/svg+xml" data="diagram.svg"></object>`,
+  }));
+  const result = await loadReaderHtml("2401.00001", cached);
+  expect(result).toEqual({
+    kind: "html",
+    html: cached + '<img src="https://ar5iv.labs.arxiv.org/html/2401.00001/diagram.svg" alt="" />',
+  });
 });
 
 test("returns none on network errors", async () => {

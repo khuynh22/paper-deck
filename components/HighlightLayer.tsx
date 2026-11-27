@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { createHighlight, deleteHighlight, updateHighlightNote } from "@/app/actions/highlights";
+import { createHighlight, deleteHighlight, updateHighlightNote } from "@/lib/reader/mutations";
 import {
   offsetsFromSelection,
   decorateBlock,
@@ -11,18 +11,20 @@ import {
   type DecorateTarget,
 } from "@/lib/reader/highlightRange";
 import { runReaderAction } from "@/lib/reader/runReaderAction";
-import { SaveStatus } from "@/components/SaveStatus";
+import { SaveStatus, saveStatusText } from "@/components/SaveStatus";
 import { useUnsavedChanges } from "@/components/useUnsavedChanges";
-import { mutationFailure } from "@/lib/mutationResult";
+import { newHighlightId } from "@/lib/reader/highlightId";
 import type { SaveState } from "@/lib/reader/progressSaver";
 import { NOTE_MAX } from "@/lib/db/highlightRow";
 import { Button } from "@/components/ui";
+import { readerViewportTop } from "@/lib/reader/viewport";
 import type { Highlight } from "@/lib/types";
 
 type Pending = {
   requestId: string;
   x: number;
   y: number;
+  below: boolean;
   blockAnchor: string;
   start: number;
   end: number;
@@ -47,8 +49,14 @@ export function HighlightLayer({
   const busy = useRef(false);
   const locked = useRef(false);
   const [saveState, setSaveState] = useState<SaveState>({ status: "idle" });
-  const [lastOperation, setLastOperation] = useState<"create" | "note" | "delete">("create");
+  const [lastOperation, setLastOperation] = useState<"create" | "note" | "delete" | "discard">("create");
   const saving = saveState.status === "saving";
+  useEffect(() => {
+    if (saveState.status !== "saved") return;
+    const timer = setTimeout(() => setSaveState((current) =>
+      current.status === "saved" ? { status: "idle" } : current), 2000);
+    return () => clearTimeout(timer);
+  }, [saveState]);
   useUnsavedChanges(saving || saveState.status === "error" || Boolean(editing &&
     noteDraft !== (highlights.find((h) => h.id === editing.id)?.note ?? "")));
 
@@ -131,12 +139,14 @@ export function HighlightLayer({
       const rect =
         typeof range.getBoundingClientRect === "function"
           ? range.getBoundingClientRect()
-          : { left: 0, top: 0, width: 0 };
+          : { left: 0, top: 0, bottom: 0, width: 0 };
+      const below = rect.top < readerViewportTop() + 96;
       setSaveState({ status: "idle" });
       setPending({
-        requestId: crypto.randomUUID(),
+        requestId: newHighlightId(),
         x: rect.left + rect.width / 2,
-        y: rect.top,
+        y: below ? rect.bottom + 8 : rect.top,
+        below,
         blockAnchor: block.getAttribute("data-blk") ?? "",
         start: offsets.start,
         end: offsets.end,
@@ -147,8 +157,30 @@ export function HighlightLayer({
     return () => document.removeEventListener("mouseup", onMouseUp);
   }, [containerRef]);
 
-  function cancel() {
+  async function cancel() {
     if (busy.current) return;
+    if (pending && saveState.status === "error" && saveState.error.code === "storage") {
+      // The insert may have committed despite its lost response. Cancel means
+      // discard that stable ID, including any row already written by it.
+      // Authentication failures happen before the insert, so they can close locally.
+      busy.current = true;
+      locked.current = true;
+      setLastOperation("discard");
+      setSaveState({ status: "saving" });
+      try {
+        const result = await runReaderAction(() => deleteHighlight(pending.requestId));
+        if (!result.ok) {
+          setSaveState({ status: "error", error: { ...result,
+            message: "Couldn’t discard this uncertain highlight. Retry Cancel when connected." } });
+          return;
+        }
+      } finally {
+        busy.current = false;
+      }
+    }
+    if (editing && saveState.status === "error" && saveState.error.code === "not_found") {
+      setHighlights((hs) => hs.filter((h) => h.id !== editing.id));
+    }
     locked.current = false;
     setPending(null);
     setEditing(null);
@@ -180,8 +212,6 @@ export function HighlightLayer({
       locked.current = false;
       window.getSelection()?.removeAllRanges();
       setSaveState({ status: "saved" });
-    } catch (error) {
-      setSaveState({ status: "error", error: mutationFailure(error) });
     } finally {
       busy.current = false;
     }
@@ -210,8 +240,6 @@ export function HighlightLayer({
       } else {
         setSaveState({ status: "pending" });
       }
-    } catch (error) {
-      setSaveState({ status: "error", error: mutationFailure(error) });
     } finally {
       busy.current = false;
     }
@@ -232,20 +260,19 @@ export function HighlightLayer({
       setEditing(null);
       locked.current = false;
       setSaveState({ status: "saved" });
-    } catch (error) {
-      setSaveState({ status: "error", error: mutationFailure(error) });
     } finally {
       busy.current = false;
     }
   }
 
   function retry() {
-    void (lastOperation === "create" ? confirmHighlight() :
+    void (lastOperation === "discard" ? cancel() : lastOperation === "create" ? confirmHighlight() :
       lastOperation === "delete" ? removeHighlight() : saveNote());
   }
 
   return (
     <>
+      <span role="status" aria-label="Highlight save" className="sr-only">{saveStatusText(saveState)}</span>
       {!pending && !editing && saveState.status === "saved" && (
         <div className="fixed bottom-36 right-4 z-30 rounded-xl bg-card px-3 py-2 shadow-md">
           <SaveStatus state={saveState} onRetry={retry} />
@@ -254,8 +281,8 @@ export function HighlightLayer({
       {pending && (
         <div
           data-highlight-controls
-          className="pd-enter fixed z-30 -translate-x-1/2 -translate-y-full pb-2"
-          style={{ left: pending.x, top: pending.y }}
+          className={`pd-enter fixed z-30 flex w-72 max-w-[calc(100vw-2rem)] flex-col items-center pb-2 ${pending.below ? "" : "-translate-y-full"}`}
+          style={{ left: `clamp(1rem, calc(${pending.x}px - 9rem), calc(100vw - 19rem))`, top: pending.y }}
         >
           <Button
             variant="primary"
@@ -265,7 +292,7 @@ export function HighlightLayer({
           >
             Highlight
           </Button>
-          <div className="mt-1 max-w-72 rounded-xl bg-card p-2 shadow-md">
+          <div className="mt-1 w-full rounded-xl bg-card p-2 shadow-md">
             <SaveStatus state={saveState} onRetry={retry} />
             <button type="button" className="mt-1 text-xs underline" disabled={saving} onClick={cancel}>Cancel</button>
           </div>
@@ -275,8 +302,8 @@ export function HighlightLayer({
       {editing && (
         <div
           data-highlight-controls
-          className="pd-enter fixed z-30 w-72 rounded-xl border border-line bg-card p-3 shadow-lg"
-          style={{ left: editing.x, top: editing.y + 6 }}
+          className="pd-enter fixed z-30 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-card p-3 shadow-lg"
+          style={{ left: `clamp(1rem, ${editing.x}px, calc(100vw - 19rem))`, top: editing.y + 6 }}
         >
           <textarea
             aria-label="Note"

@@ -1,35 +1,26 @@
 # Trending ranking and paging
 
-Migration 0011 evaluates the existing score over the complete public corpus before
-applying the result limit:
+Trending scores the full public corpus before selecting a page.
 
 `(3 * hf_upvotes + 5 * ln(1 + pwc_stars)) * (0.3 + exp(-age_days / 14))`
 
-Signal counts are nonnegative counts. `age_days` is elapsed time from publication
-to the caller's `as_of`, floored at zero. Future publications therefore receive
-the same recency factor as publications at `as_of`. Missing dates use 3,650 days.
-Zero signals produce zero score. The SQL caps very old ages at 10,000 days to
-avoid floating-point exponential underflow; at that age the recency contribution
-is already below double-precision significance when added to 0.3.
+Future publications use an age of zero. Missing and non-finite publication dates
+use 3,650 days. Negative legacy signal counts contribute zero. PostgreSQL caps
+age at 10,000 days to avoid exponential underflow. At that age, adding the decay
+term to 0.3 already rounds to 0.3 in double precision.
 
-Scores descend and UUIDs ascend to break ties. The `trending_papers` RPC accepts
-`as_of`, `page_limit` (1–100) and `page_offset` (0–100,000). `getFeed` validates the
-window and lets callers retain one ISO timestamp across pages. This freezes time
-decay, not the corpus: imports or signal updates can still change ordering. A new
-feed session should choose a fresh timestamp. Latest and famous feeds also use
-UUID tie-breakers. URL filter/pagination controls belong to issue #50.
+Trending sorts by descending score and ascending paper ID. `getFeed` accepts a
+limit of 1–100 and an offset of 0–100,000. Pass the same ISO timestamp as `asOf`
+on each page to freeze time decay. Imports and signal updates can still change
+page membership. Latest and Famous use ascending paper ID to break ties.
 
-Validation: `node scripts/test-ranking-db.mjs` creates and drops its own database
-inside a local Supabase PostgreSQL container. Set `TEST_POSTGRES_CONTAINER` when
-using a different local container. It reproduces the old top-40 exclusion with 50
-papers, compares the complete SQL ordering with the unchanged TypeScript reference
-at a frozen time, and verifies paginated concatenation, null/future/ancient dates,
-zero signals and ties. Browser coverage demonstrates the excluded fresh paper is
-now visible on the trending feed.
+Apply `20261114204352_trending_ranking.sql` before deploying the app that calls
+`trending_papers`. The migration adds a read-only function and grants it access
+through the existing public papers policy. The previous app can run with the
+function in place.
 
-A synthetic 50,000-row corpus on local PostgreSQL 17 returned 40 rows in 50.6 ms
-with 1,973 shared buffer hits, one read and no temporary writes. The actual RPC
-plan is emitted by the regression script and CI. No new index was justified:
-ranking depends on the requested time and both signals, so the existing raw-signal
-indexes cannot establish the score order. This is a local measurement, not a
-production latency guarantee.
+`node scripts/test-ranking-db.mjs` runs against a disposable database inside the
+local PostgreSQL container named by `TEST_POSTGRES_CONTAINER`. It reproduces the
+old top-40 exclusion, compares every result with the TypeScript score, verifies
+frozen paging under the public API role, and prints a query plan for a synthetic
+50,000-paper corpus.

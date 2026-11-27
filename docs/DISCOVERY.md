@@ -22,7 +22,7 @@ message. Direct page numbers above one require an `asof` value. Page 2501 is the
 bounded offset limit; the UI asks for narrower filters if more results remain.
 Topic/venue/query lengths are bounded and all database values are RPC parameters.
 
-Migration 0012 adds `discover_papers` (security invoker over the public corpus) and
+Migration `20261127070212_discovery.sql` adds `discover_papers` (security invoker over the public corpus) and
 shares the same score helper with the existing trending RPC. Selective venue
 filtering on a synthetic 50,000-row PostgreSQL 17 corpus improved from 2.8 ms / 8,444
 buffer hits to 1.0 ms / 506 hits using an index on lower(venue). A candidate category
@@ -34,3 +34,9 @@ and runs the SQL discovery assertions in a database it creates and drops.
 Tests cover more than 40 tied rows in all four orders, independent and combined
 filters, relevance weighting, inclusive date boundaries, exact IDs, empty results,
 URL validation, desktop/mobile paging, and Back/reload restoration.
+
+With a running local app and Supabase database, run the desktop and mobile
+browser checks with `node --env-file=.env.local scripts/verify-discovery.mjs`.
+Install the test browser once with `pnpm exec playwright install chromium`.
+Set `DISCOVERY_BASE_URL` if the local app uses a port other than 3000. The
+script seeds and deletes its own papers using the local service-role key.

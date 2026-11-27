@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+import { assertPreviewDatabase } from "./lib/deployment";
+
+assertPreviewDatabase(process.env);
 
 const nextConfig: NextConfig = {
   // Emit a self-contained `.next/standalone` server (minimal node_modules + server.js)

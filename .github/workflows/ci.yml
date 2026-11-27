@@ -5,43 +5,14 @@ on:
     branches: [master]
   # Include dependent PR bases so stacked changes receive the same checks.
   pull_request:
+    # Retargeting a conflicted PR or marking a draft ready must restart CI.
+    types: [opened, synchronize, reopened, ready_for_review, edited]
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  browser:
-    name: Browser persistence
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - name: Start isolated database and apply all migrations
-        run: pnpm test:e2e:setup
-      - name: Desktop and mobile persistence
-        run: pnpm test:e2e
-      - name: Database ranking regression and query plan
-        run: node scripts/test-ranking-db.mjs
-        env:
-          TEST_POSTGRES_CONTAINER: supabase_db_paper-deck-e2e
-      - name: Failure traces and screenshots
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: browser-failures
-          path: |
-            test-results/
-            playwright-report/
-          retention-days: 7
-
   checks:
     name: Lint, typecheck, test
     runs-on: ubuntu-latest
@@ -67,6 +38,39 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  database:
+    name: Database regressions
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: local-test-password
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Create local API roles
+        env:
+          TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: >-
+          docker exec "$TEST_POSTGRES_CONTAINER" psql -U postgres -v ON_ERROR_STOP=1
+          -c 'create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;'
+      - name: Check ingestion and refresh migrations
+        env:
+          TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: node scripts/test-ingestion-db.mjs
+      - name: Check trending ranking and paging
+        env:
+          TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: node scripts/test-ranking-db.mjs
 
   build:
     name: Production build

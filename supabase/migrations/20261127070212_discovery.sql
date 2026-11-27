@@ -1,15 +1,38 @@
-create or replace function public.paper_trending_score(hf integer, pwc integer, published timestamptz, as_of timestamptz)
-returns double precision language sql immutable parallel safe as $$
-  select (hf::double precision * 3 + ln(1 + pwc::double precision) * 5) *
-    (0.3 + exp(-least(greatest(coalesce(extract(epoch from (as_of - published))::double precision / 86400, 3650), 0), 10000) / 14));
+create or replace function public.paper_trending_score(
+  hf integer, pwc integer, published timestamptz, as_of timestamptz
+) returns double precision
+language sql immutable parallel safe security invoker
+as $$
+  select
+    (greatest(hf, 0)::double precision * 3
+      + ln(1 + greatest(pwc, 0)::double precision) * 5) *
+    (0.3 + exp(-least(greatest(coalesce(
+      case when isfinite(published) then (
+        extract(epoch from as_of)::double precision
+        - extract(epoch from published)::double precision
+      ) / 86400 end,
+      3650
+    ), 0), 10000) / 14));
 $$;
 
--- Preserve the existing ranking RPC while sharing its policy with discovery.
-create or replace function public.trending_papers(as_of timestamptz default now(), page_limit integer default 40, page_offset integer default 0)
-returns setof public.papers language sql stable security invoker set search_path = public as $$
+revoke all on function public.paper_trending_score(integer, integer, timestamptz, timestamptz) from public;
+grant execute on function public.paper_trending_score(integer, integer, timestamptz, timestamptz) to anon, authenticated, service_role;
+
+-- Keep the existing ranking RPC and use its score policy in both queries.
+create or replace function public.trending_papers(
+  as_of timestamptz default now(),
+  page_limit integer default 40,
+  page_offset integer default 0
+) returns setof public.papers
+language sql stable security invoker
+set search_path = ''
+as $$
   select p.* from public.papers p
-  order by public.paper_trending_score(p.hf_upvotes,p.pwc_stars,p.published_at,coalesce(as_of,now())) desc,p.id
-  limit greatest(1,least(coalesce(page_limit,40),100)) offset greatest(0,least(coalesce(page_offset,0),100000));
+  order by public.paper_trending_score(
+    p.hf_upvotes, p.pwc_stars, p.published_at, case when isfinite(as_of) then as_of else now() end
+  ) desc, p.id
+  limit greatest(1, least(coalesce(page_limit, 40), 100))
+  offset greatest(0, least(coalesce(page_offset, 0), 100000));
 $$;
 
 create or replace function public.discover_papers(
@@ -32,7 +55,9 @@ create or replace function public.discover_papers(
     and (filter_from is null or p.published_at >= (filter_from::timestamp at time zone 'UTC'))
     and (filter_to is null or p.published_at < ((filter_to + 1)::timestamp at time zone 'UTC'))
   order by
-    case when a.mode='trending' then public.paper_trending_score(p.hf_upvotes,p.pwc_stars,p.published_at,coalesce(as_of,now())) end desc nulls last,
+    case when a.mode = 'trending' then public.paper_trending_score(
+      p.hf_upvotes, p.pwc_stars, p.published_at, case when isfinite(as_of) then as_of else now() end
+    ) end desc nulls last,
     case when a.mode='famous' then p.citations end desc nulls last,
     case when a.mode='search' then ts_rank(p.search_vector,a.query) end desc nulls last,
     case when a.mode in ('latest','search') then p.published_at end desc nulls last,

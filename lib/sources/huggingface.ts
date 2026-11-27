@@ -1,4 +1,4 @@
-import { sourceFetch } from "./http";
+import { sourceFetch, sourceJson } from "./http";
 import type { NormalizedPaper } from "@/lib/types";
 
 interface HfAuthor {
@@ -51,5 +51,5 @@ export async function fetchHfDaily(): Promise<NormalizedPaper[]> {
     headers: { "User-Agent": "PaperDeck/1.0 (research reader)" },
   });
   if (!res.ok) throw new Error(`huggingface ${res.status}`);
-  return parseHfDaily(await res.json());
+  return parseHfDaily(await sourceJson(res));
 }

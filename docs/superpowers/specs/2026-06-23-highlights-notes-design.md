@@ -4,6 +4,10 @@
 **Branch:** `feat/reader-highlights-notes` (off `master`)
 **Date:** 2026-06-23
 
+> **Save behavior superseded 2026-10-05:** [Reader save behavior](../../READER-SAVES.md)
+> replaces the action return contracts and optimistic paint described below.
+> Highlight anchoring and the no-overlap rule still apply.
+
 ## Summary
 
 Let signed-in users highlight a passage of text in the **HTML reader** and attach an

@@ -4,6 +4,12 @@ import { runSources } from "@/lib/sources";
 import { refreshStatus } from "@/lib/corpus/refresh";
 import { isSourceStale } from "@/lib/corpus/refreshHealth";
 import { fetchConferences } from "@/lib/sources/conferences";
+import { fetchHfDaily } from "@/lib/sources/huggingface";
+import { fetchS2Famous } from "@/lib/sources/semanticscholar";
+import { fetchScholar } from "@/lib/sources/googlescholar";
+import { fetchPwcTrending } from "@/lib/sources/paperswithcode";
+import { fetchArxivLatest } from "@/lib/sources/arxiv";
+import type { SourceId } from "@/lib/types";
 
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
@@ -84,4 +90,52 @@ test("a hung source cannot hold the aggregate open indefinitely", async () => {
   const request = runSources([{ id: "arxiv", run: () => new Promise(() => {}) }], Date.now() + 100);
   await vi.advanceTimersByTimeAsync(201);
   expect((await request).outcomes[0].status).toBe("failed");
+});
+
+const adapters: [SourceId, () => ReturnType<typeof fetchHfDaily>, string][] = [
+  ["huggingface", fetchHfDaily, "[]"],
+  ["semanticscholar", () => fetchS2Famous(["test"]), '{"data":[]}'],
+  ["conferences", () => fetchConferences("2024-2026"), '{"data":[]}'],
+  ["googlescholar", () => fetchScholar("test"), '{"organic_results":[]}'],
+  ["paperswithcode", fetchPwcTrending, '{"results":[]}'],
+  ["arxiv", fetchArxivLatest, '<feed xmlns="http://www.w3.org/2005/Atom"/>'],
+];
+
+test.each(adapters)("%s reports an HTTP 200 provider error as failed without exposing its contents", async (id, run) => {
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://localhost");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "test");
+  vi.stubEnv("SERPAPI_KEY", "test-key");
+  vi.stubGlobal("fetch", vi.fn(async () => new Response('{"error":"api_key=private"}', { headers: { "content-type": "application/json" } })));
+  const result = await runSources([{ id, run }]);
+  expect(result.outcomes[0]).toMatchObject({ status: "failed", count: 0 });
+  expect(result.errors.every(error => error.error.includes("Upstream format"))).toBe(true);
+  expect(JSON.stringify(result)).not.toContain("private");
+});
+
+test.each(adapters)("%s accepts a valid empty response as healthy", async (id, run, body) => {
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://localhost");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "test");
+  vi.stubEnv("SERPAPI_KEY", "test-key");
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { headers: { "content-type": "application/json" } })));
+  const result = await runSources([{ id, run }]);
+  expect(result.outcomes[0]).toMatchObject({ status: "healthy", count: 0 });
+  expect(result.errors).toEqual([]);
+});
+
+test.each(["{", "null", "{}", "[null]", '["invalid item"]'])("invalid HF payload %s cannot masquerade as a healthy empty response", async body => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(body)));
+  const result = await runSources([{ id: "huggingface", run: fetchHfDaily }]);
+  expect(result.outcomes[0].status).toBe("failed");
+  expect(result.errors).toEqual([{ id: "huggingface", error: "Upstream format" }]);
+});
+
+test("malformed conference responses retain papers from a successful venue", async () => {
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://localhost");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "test");
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response('{"data":[{"title":"Paper","externalIds":{"ArXiv":"2611.12345"}}]}'))
+    .mockImplementation(async () => new Response('{"error":"private provider detail"}')));
+  const result = await runSources([{ id: "conferences", run: () => fetchConferences("2024-2026") }]);
+  expect(result.results).toHaveLength(1);
+  expect(result.outcomes[0]).toMatchObject({ status: "partial", count: 1 });
+  expect(result.errors.map(error => error.error)).toEqual(["ICML: Upstream format", "ICLR: Upstream format"]);
 });

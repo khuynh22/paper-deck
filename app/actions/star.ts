@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { serverClient } from "@/lib/db/server";
+import { resolvePaperId } from "@/lib/db/paperIdentity";
 import { currentUser } from "@/lib/auth";
 import { nextStarState } from "@/lib/star";
 
@@ -23,6 +24,11 @@ export async function toggleStar(
   const user = await currentUser();
   if (!user) return { ok: false, error: "auth-required" };
   const db = await serverClient();
+  try {
+    paperId = await resolvePaperId(db, paperId);
+  } catch {
+    return { ok: false, error: "save-failed" };
+  }
   const next = nextStarState(currentlyStarred);
 
   const { error } = next

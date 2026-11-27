@@ -1,4 +1,4 @@
-import { sourceFetch, sourceWarning, sourceSuccess } from "./http";
+import { sourceFetch, sourceJson, sourceWarning, sourceSuccess } from "./http";
 import { env } from "@/lib/env";
 import type { NormalizedPaper } from "@/lib/types";
 
@@ -70,7 +70,7 @@ export async function fetchS2Famous(
       `&limit=${perQuery}&fields=${FIELDS}`;
     try {
       const res = await sourceFetch(url, { headers });
-      all.push(...parseS2(await res.json()));
+      all.push(...parseS2(await sourceJson(res, "data")));
       sourceSuccess();
     } catch (error) {
       sourceWarning(`Query ${queries.indexOf(q) + 1}`, error);

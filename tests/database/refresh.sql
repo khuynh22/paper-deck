@@ -11,8 +11,14 @@ begin
   if again.reason <> 'cooldown' then raise exception 'cooldown missing'; end if;
   select * into claim from begin_refresh('cron');
   if claim.reason <> 'started' then raise exception 'cron incorrectly blocked by manual cooldown'; end if;
+  update refresh_source_health set last_success_at='2000-01-01T00:00:00Z' where source_id='arxiv';
   final := finish_refresh(claim.run_id, 'failed', '[{"id":"arxiv","status":"failed","count":0}]','{}','Source failed');
-  if not exists(select 1 from refresh_source_health where source_id='arxiv' and last_success_at is not null) then raise exception 'failure erased success history'; end if;
+  if not exists(select 1 from refresh_source_health where source_id='arxiv' and last_success_at='2000-01-01T00:00:00Z') then raise exception 'failure changed success history'; end if;
+  select * into claim from begin_refresh('cron');
+  perform finish_refresh(claim.run_id, 'partial', '[{"id":"arxiv","status":"healthy","count":101}]',
+    '{"inserted":100,"updated":0,"skipped":0,"failed":0,"unconfirmed":1}', 'Some paper imports could not be confirmed. Retry to confirm.');
+  if not exists(select 1 from refresh_runs where id=claim.run_id and status='partial'
+    and ingestion->>'inserted'='100' and ingestion->>'unconfirmed'='1') then raise exception 'confirmed or unconfirmed counts lost'; end if;
   select * into claim from begin_refresh('cron');
   update refresh_lease set expires_at=now()-interval '1 second';
   select * into again from begin_refresh('cron');

@@ -27,6 +27,21 @@ export function sourceSuccess() {
   if (context) context.successes = (context.successes ?? 0) + 1;
 }
 
+/** A provider error or changed envelope is not a successful empty collection. */
+export async function sourceJson(response: Response, arrayField?: string): Promise<unknown> {
+  let json: unknown;
+  try { json = await response.json(); }
+  catch { throw new SourceError("format"); }
+  const record = json !== null && typeof json === "object" && !Array.isArray(json)
+    ? json as Record<string, unknown> : null;
+  const collection = arrayField ? record?.[arrayField] : json;
+  if ((record && "error" in record) || !Array.isArray(collection) ||
+      collection.some(item => item === null || typeof item !== "object" || Array.isArray(item))) {
+    throw new SourceError("format");
+  }
+  return json;
+}
+
 export function retryDelay(value: string | null, now: number): number {
   if (!value) return 500;
   const seconds = Number(value);

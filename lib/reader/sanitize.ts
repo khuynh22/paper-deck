@@ -46,6 +46,7 @@ const COMMON_ATTRS = ["class", "id", "style", "title", "lang", "dir"];
 const TABLE_ATTRS = ["colspan", "rowspan", "valign", "scope", "headers"];
 
 const BLOCK_TAGS = "p|h1|h2|h3|h4|h5|h6|li|figure|table|blockquote|pre|section|div";
+const SVG_IMAGE_HOSTS = new Set(["arxiv.org", "www.arxiv.org", "ar5iv.org", "ar5iv.labs.arxiv.org"]);
 
 /**
  * Extract the paper body from a full arXiv/ar5iv document so page chrome (nav,
@@ -86,6 +87,31 @@ function absolutizeImages(html: string, baseUrl: string): string {
   );
 }
 
+function svgObjectToImage(baseUrl: string): sanitizeHtml.Transformer {
+  return (tagName, attribs) => {
+    if (attribs.type?.trim().toLowerCase() !== "image/svg+xml" || !attribs.data?.trim()) {
+      return { tagName, attribs };
+    }
+
+    let url: URL;
+    try {
+      url = new URL(attribs.data, baseUrl);
+    } catch {
+      return { tagName, attribs };
+    }
+    if (url.protocol !== "https:" || url.port || url.username || url.password ||
+        !SVG_IMAGE_HOSTS.has(url.hostname) || !/\.svg$/i.test(url.pathname)) {
+      return { tagName, attribs };
+    }
+
+    const image = { src: url.href, alt: attribs["aria-label"] || attribs.alt || attribs.title || "" };
+    const metadata = Object.fromEntries(
+      ["id", "class", "title", "width", "height"].filter((key) => attribs[key]).map((key) => [key, attribs[key]]),
+    );
+    return { tagName: "img", attribs: { ...image, ...metadata } };
+  };
+}
+
 /** Tag block-level elements with sequential data-blk indices for scroll/highlight anchoring. */
 function tagBlocks(html: string): string {
   let i = 0;
@@ -107,7 +133,11 @@ function tagBlocks(html: string): string {
  * loads and runs reliably in bundled serverless functions. (jsdom's runtime
  * `require()` chain throws ERR_REQUIRE_ESM on older serverless Node.)
  */
-export function sanitizePaperHtml(html: string, baseUrl: string): string {
+export function sanitizePaperHtml(
+  html: string,
+  baseUrl: string,
+  { renderSvgObjects = true } = {},
+): string {
   const absolutized = absolutizeImages(extractMainContent(html), baseUrl);
   const clean = sanitizeHtml(absolutized, {
     // <img> and MathML aren't in sanitize-html's defaults; everything else we
@@ -121,6 +151,7 @@ export function sanitizePaperHtml(html: string, baseUrl: string): string {
     allowedSchemes: ["http", "https", "mailto"],
     allowedSchemesByTag: { img: ["http", "https", "data"] },
     allowProtocolRelative: false,
+    transformTags: renderSvgObjects ? { object: svgObjectToImage(baseUrl) } : {},
     // <script>/<style> tags AND their text content are dropped by default.
   });
   return tagBlocks(clean);

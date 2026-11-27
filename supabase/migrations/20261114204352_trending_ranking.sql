@@ -1,18 +1,20 @@
--- Rank the complete public corpus before taking a page. The caller retains
--- as_of across pages; UUID order breaks score ties deterministically.
 create or replace function public.trending_papers(
   as_of timestamptz default now(),
   page_limit integer default 40,
   page_offset integer default 0
 ) returns setof public.papers
 language sql stable security invoker
-set search_path = public
+set search_path = ''
 as $$
   select p.* from public.papers p
   order by
-    (p.hf_upvotes::double precision * 3 + ln(1 + p.pwc_stars::double precision) * 5) *
+    (greatest(p.hf_upvotes, 0)::double precision * 3
+      + ln(1 + greatest(p.pwc_stars, 0)::double precision) * 5) *
     (0.3 + exp(-least(greatest(coalesce(
-      extract(epoch from (coalesce(as_of, now()) - p.published_at))::double precision / 86400,
+      case when isfinite(p.published_at) then (
+        extract(epoch from case when isfinite(as_of) then as_of else now() end)::double precision
+        - extract(epoch from p.published_at)::double precision
+      ) / 86400 end,
       3650
     ), 0), 10000) / 14)) desc,
     p.id asc
