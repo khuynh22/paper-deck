@@ -45,6 +45,15 @@ function page(role, limit, offset = 0) {
     .trim().split(/\r?\n/).filter(Boolean);
 }
 
+function discoveryPage(role, limit, offset = 0) {
+  return sql(`
+    set role ${role};
+    select id from public.discover_papers(
+      sort_mode => 'trending', as_of => '${asOf}', page_limit => ${limit}, page_offset => ${offset}
+    );
+  `).trim().split(/\r?\n/).filter(Boolean);
+}
+
 docker(["createdb", "-U", "postgres", database]);
 try {
   sql("create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql as 'select null::uuid';");
@@ -67,11 +76,20 @@ try {
   assert.deepEqual([...page("anon", 20), ...page("anon", 20, 20), ...page("anon", 20, 40)], expected);
   console.log("Trending ranking matches the reference, including frozen paging and all API roles.");
 
+  for (const role of ["anon", "authenticated", "service_role"]) {
+    assert.deepEqual(discoveryPage(role, 100), expected, `Discovery must preserve trending ranking for ${role}`);
+  }
+  assert.deepEqual([...discoveryPage("anon", 40), ...discoveryPage("anon", 40, 40)], expected);
+
+  sql(readFileSync("tests/database/discovery.sql", "utf8"));
+  console.log("Discovery checks passed for all orders, paging, filters, relevance, and exact arXiv IDs.");
+
   sql(`
     truncate papers cascade;
-    insert into papers(id, title, hf_upvotes, pwc_stars, published_at)
+    insert into papers(id, title, hf_upvotes, pwc_stars, published_at, venue)
     select md5(i::text)::uuid, 'Plan fixture ' || i, i % 100, i % 500,
-      '2026-06-06'::timestamptz - (i % 3650) * interval '1 day'
+      '2026-06-06'::timestamptz - (i % 3650) * interval '1 day',
+      case when i % 100 = 0 then 'TargetConf' else 'OtherConf' end
     from generate_series(1, 50000) i;
     analyze papers;
   `);
@@ -80,6 +98,12 @@ try {
     explain (analyze, buffers) select id from public.trending_papers('${asOf}', 40, 0);
   `);
   console.log("50,000-row ranking query plan\n" + plan);
+
+  const venuePlan = sql(`
+    set role anon;
+    explain (analyze, buffers) select id from public.discover_papers(filter_venue => 'targetconf');
+  `);
+  console.log("50,000-row discovery venue query plan\n" + venuePlan);
 } finally {
   docker(["dropdb", "-U", "postgres", database]);
 }
